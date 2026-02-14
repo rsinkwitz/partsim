@@ -28,6 +28,7 @@ export class SceneManager {
 
   private drawMode: DrawMode = DrawMode.LIGHTED;
   private sphereSegments: number = 16;
+  private wireframeSegments: number = 8; // Segments für Wireframe-Modus (4-32)
   private stereoMode: StereoMode = StereoMode.OFF;
   private initialCameraDistance: number = 0; // Initiale Distanz von Kamera zu Target
 
@@ -176,8 +177,8 @@ export class SceneManager {
       case DrawMode.WIREFRAME:
         const wireframeGeometry = new THREE.SphereGeometry(
           ball.radius,
-          this.sphereSegments,
-          this.sphereSegments
+          this.wireframeSegments,
+          this.wireframeSegments
         );
         material = new THREE.MeshBasicMaterial({
           color: ball.color,
@@ -562,6 +563,13 @@ export class SceneManager {
   }
 
   /**
+   * Get current draw mode
+   */
+  getDrawMode(): DrawMode {
+    return this.drawMode;
+  }
+
+  /**
    * Set 3D Stereo Mode
    */
   setStereoMode(mode: StereoMode): void {
@@ -577,6 +585,37 @@ export class SceneManager {
         console.log('📺 Top-Bottom split-screen rendering active');
       }
     }
+  }
+
+  /**
+   * Get current stereo mode
+   */
+  getStereoMode(): StereoMode {
+    return this.stereoMode;
+  }
+
+  /**
+   * Set auto-rotation mode (gentle rotation about vertical Z-axis)
+   */
+  setAutoRotation(enabled: boolean): void {
+    this.controls.autoRotate = enabled;
+    this.controls.autoRotateSpeed = 1.0; // CCW rotation speed (degrees per second at 60 fps)
+    console.log('🔄 Auto-rotation:', enabled ? 'ON' : 'OFF');
+  }
+
+  /**
+   * Set wireframe density (segments)
+   */
+  setWireframeSegments(segments: number): void {
+    this.wireframeSegments = Math.max(4, Math.min(32, segments));
+    console.log('🔲 Wireframe segments:', this.wireframeSegments);
+  }
+
+  /**
+   * Get current wireframe segments
+   */
+  getWireframeSegments(): number {
+    return this.wireframeSegments;
   }
 
   /**

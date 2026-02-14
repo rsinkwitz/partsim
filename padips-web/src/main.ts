@@ -25,6 +25,7 @@ class PaDIPSApp {
   private frameCount: number = 0;
   private lastFpsUpdate: number = 0;
   private currentFps: number = 0;
+  private isTurning: boolean = false; // Auto-rotation mode
 
   // UI state
   private ballParams: BallGenerationParams = { ...DEFAULT_BALL_PARAMS };
@@ -122,6 +123,16 @@ class PaDIPSApp {
       console.log('👁️ Eye separation:', (value / 100).toFixed(3), 'm');
     }, 100);
 
+    // Wireframe density (segments)
+    this.setupRangeControl('wireframeSegments', (value) => {
+      this.sceneManager.setWireframeSegments(value);
+      // Recreate meshes if in wireframe mode
+      if (this.sceneManager.getDrawMode() === DrawMode.WIREFRAME) {
+        this.sceneManager.recreateBallMeshes(this.ballSet);
+      }
+      console.log('🔲 Wireframe segments:', value);
+    });
+
     // Cube depth for 3D stereo effect (in units, 0.1m per unit)
     this.setupRangeControl('cubeDepth', (value) => {
       this.sceneManager.setCubeDepth(value * 0.1); // Scale: slider -20..20 → -2..2 meters
@@ -174,6 +185,9 @@ class PaDIPSApp {
       this.global.elasticity = value / 100;
       console.log('⚡ Global elasticity:', (value / 100).toFixed(2));
     }, 100);
+
+    // Keyboard shortcuts
+    this.setupKeyboardShortcuts();
   }
 
   /**
@@ -194,6 +208,383 @@ class PaDIPSApp {
 
     input.addEventListener('input', updateValue);
     updateValue(); // Initial update
+  }
+
+  /**
+   * Setup keyboard shortcuts
+   */
+  private setupKeyboardShortcuts(): void {
+    window.addEventListener('keydown', (e) => {
+      // Ignore if typing in an input field
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) {
+        return;
+      }
+
+      // Debug: Log key events for +/- combinations
+      if ((e.key === '+' || e.key === '-' || e.key === '=' || e.key === '_' || e.key === '*' ||
+           e.code === 'NumpadAdd' || e.code === 'NumpadSubtract')) {
+        console.log('🔍 Key Debug:', {
+          key: e.key,
+          code: e.code,
+          shiftKey: e.shiftKey,
+          ctrlKey: e.ctrlKey
+        });
+      }
+
+      // ===== NUMPAD: Separate handling (always works) =====
+      if (!e.shiftKey && !e.ctrlKey && e.code === 'NumpadAdd') {
+        e.preventDefault();
+        this.changeBallCount(50);
+        console.log('⌨️ [Numpad +] Added 50 balls');
+        return;
+      }
+
+      if (!e.shiftKey && !e.ctrlKey && e.code === 'NumpadSubtract') {
+        e.preventDefault();
+        this.changeBallCount(-50);
+        console.log('⌨️ [Numpad -] Removed 50 balls');
+        return;
+      }
+
+      if (e.shiftKey && !e.ctrlKey && e.code === 'NumpadAdd') {
+        e.preventDefault();
+        this.changeWireframeDensity(2);
+        console.log('⌨️ [Shift-Numpad +] Wireframe density increased');
+        return;
+      }
+
+      if (e.shiftKey && !e.ctrlKey && e.code === 'NumpadSubtract') {
+        e.preventDefault();
+        this.changeWireframeDensity(-2);
+        console.log('⌨️ [Shift-Numpad -] Wireframe density decreased');
+        return;
+      }
+
+      if (e.ctrlKey && !e.shiftKey && e.code === 'NumpadAdd') {
+        e.preventDefault();
+        this.changeCubeDepth(1);
+        console.log('⌨️ [Ctrl-Numpad +] Cube depth increased');
+        return;
+      }
+
+      if (e.ctrlKey && !e.shiftKey && e.code === 'NumpadSubtract') {
+        e.preventDefault();
+        this.changeCubeDepth(-1);
+        console.log('⌨️ [Ctrl-Numpad -] Cube depth decreased');
+        return;
+      }
+
+      // ===== MAIN KEYBOARD: Use e.key (layout-aware) =====
+      // Shift + Plus : Increase wireframe density
+      // DE: Shift + + = *, EN: Shift + = = +
+      if (e.shiftKey && !e.ctrlKey && (e.key === '+' || e.key === '*')) {
+        e.preventDefault();
+        this.changeWireframeDensity(2);
+        console.log('⌨️ [Shift-+] Wireframe density increased (key:', e.key, ')');
+        return;
+      }
+
+      // Shift + Minus : Decrease wireframe density
+      if (e.shiftKey && !e.ctrlKey && (e.key === '-' || e.key === '_')) {
+        e.preventDefault();
+        this.changeWireframeDensity(-2);
+        console.log('⌨️ [Shift--] Wireframe density decreased (key:', e.key, ')');
+        return;
+      }
+
+      // Ctrl + Plus : Increase cube depth
+      if (e.ctrlKey && !e.shiftKey && (e.key === '+' || e.key === '=')) {
+        e.preventDefault();
+        this.changeCubeDepth(1);
+        console.log('⌨️ [Ctrl-+] Cube depth increased (key:', e.key, ')');
+        return;
+      }
+
+      // Ctrl + Minus : Decrease cube depth
+      if (e.ctrlKey && !e.shiftKey && e.key === '-') {
+        e.preventDefault();
+        this.changeCubeDepth(-1);
+        console.log('⌨️ [Ctrl--] Cube depth decreased');
+        return;
+      }
+
+      // Plain +/- : Ball count (layout-aware)
+      // DE: + ohne Shift, EN: = ohne Shift
+      if (!e.shiftKey && !e.ctrlKey && (e.key === '+' || e.key === '=')) {
+        e.preventDefault();
+        this.changeBallCount(50);
+        console.log('⌨️ [+] Added 50 balls (key:', e.key, ')');
+        return;
+      }
+
+      if (!e.shiftKey && !e.ctrlKey && e.key === '-') {
+        e.preventDefault();
+        this.changeBallCount(-50);
+        console.log('⌨️ [-] Removed 50 balls');
+        return;
+      }
+
+      // ===== VI-STYLE SHORTCUTS: j/k (always available) =====
+      const keyLower = e.key.toLowerCase();
+
+      // k = more balls (vi: up/more)
+      if (keyLower === 'k' && !e.shiftKey && !e.ctrlKey) {
+        this.changeBallCount(50);
+        console.log('⌨️ [K] Added 50 balls (vi-style)');
+        return;
+      }
+
+      // j = fewer balls (vi: down/less)
+      if (keyLower === 'j' && !e.shiftKey && !e.ctrlKey) {
+        this.changeBallCount(-50);
+        console.log('⌨️ [J] Removed 50 balls (vi-style)');
+        return;
+      }
+
+      // Shift-K: increase wireframe density
+      if (e.shiftKey && !e.ctrlKey && keyLower === 'k') {
+        this.changeWireframeDensity(2);
+        console.log('⌨️ [Shift-K] Wireframe density increased (vi-style)');
+        return;
+      }
+
+      // Shift-J: decrease wireframe density
+      if (e.shiftKey && !e.ctrlKey && keyLower === 'j') {
+        this.changeWireframeDensity(-2);
+        console.log('⌨️ [Shift-J] Wireframe density decreased (vi-style)');
+        return;
+      }
+
+      // ===== OTHER SHORTCUTS =====
+      switch (keyLower) {
+        case 's':
+          // Start/Stop toggle
+          if (this.isRunning) {
+            this.stop();
+          } else {
+            this.start();
+          }
+          console.log('⌨️ [S] Start/Stop toggled');
+          break;
+
+        case 'n':
+          // New (reset)
+          this.reset();
+          console.log('⌨️ [N] New simulation');
+          break;
+
+        case '3':
+          // Toggle Top-Bottom 3D Stereo
+          this.toggleStereoMode(StereoMode.TOP_BOTTOM);
+          console.log('⌨️ [3] Top-Bottom stereo toggled');
+          break;
+
+        case 'a':
+          // Toggle Anaglyph Stereo
+          this.toggleStereoMode(StereoMode.ANAGLYPH);
+          console.log('⌨️ [A] Anaglyph stereo toggled');
+          break;
+
+        case 't':
+          // Toggle turn mode (auto-rotation)
+          this.isTurning = !this.isTurning;
+          if (this.isTurning) {
+            this.sceneManager.setAutoRotation(true);
+          } else {
+            this.sceneManager.setAutoRotation(false);
+          }
+          console.log('⌨️ [T] Turn mode:', this.isTurning ? 'ON' : 'OFF');
+          break;
+
+        case 'g':
+          // Toggle gravity between DOWN and ZERO
+          this.toggleGravity();
+          console.log('⌨️ [G] Gravity toggled');
+          break;
+
+        case 'w':
+          // Toggle wireframe
+          this.toggleDrawMode(DrawMode.WIREFRAME);
+          console.log('⌨️ [W] Wireframe toggled');
+          break;
+
+        case 'p':
+          // Toggle points/pixels
+          this.toggleDrawMode(DrawMode.POINTS);
+          console.log('⌨️ [P] Points toggled');
+          break;
+
+        case 'f1':
+          // Toggle key help
+          e.preventDefault();
+          this.toggleKeyHelp();
+          console.log('⌨️ [F1] Key help toggled');
+          break;
+      }
+    });
+
+    console.log('⌨️ Keyboard shortcuts enabled:');
+    console.log('  [S] Start/Stop');
+    console.log('  [N] New simulation');
+    console.log('  [G] Toggle Gravity (Down ↔ Zero)');
+    console.log('  [3] Top-Bottom 3D stereo (repeat=off)');
+    console.log('  [A] Anaglyph stereo (repeat=off)');
+    console.log('  [T] Turn mode on/off');
+    console.log('  [W] Wireframe (repeat=shaded)');
+    console.log('  [P] Points (repeat=shaded)');
+    console.log('  [+/-] or [K/J] Add/Remove 50 balls (vi: K=more, J=less)');
+    console.log('  [Shift-+/-] or [Shift-K/J] Wireframe density');
+    console.log('  [Ctrl-+/-] Cube depth');
+    console.log('  [F1] Toggle key help');
+    console.log('  💡 Numpad +/- always works, main keyboard is layout-aware');
+  }
+
+  /**
+   * Toggle stereo mode (off if same mode pressed again)
+   */
+  private toggleStereoMode(mode: StereoMode): void {
+    const currentMode = this.sceneManager.getStereoMode();
+    const newMode = currentMode === mode ? StereoMode.OFF : mode;
+
+    this.sceneManager.setStereoMode(newMode);
+
+    // Update UI radio button
+    const radio = document.querySelector<HTMLInputElement>(`input[name="stereoMode"][value="${newMode}"]`);
+    if (radio) {
+      radio.checked = true;
+    }
+
+    // Update body class for Top-Bottom mode
+    if (newMode === StereoMode.TOP_BOTTOM) {
+      document.body.classList.add('stereo-topbottom');
+    } else {
+      document.body.classList.remove('stereo-topbottom');
+    }
+  }
+
+  /**
+   * Toggle draw mode (back to LIGHTED if same mode pressed again)
+   */
+  private toggleDrawMode(mode: DrawMode): void {
+    const currentMode = this.sceneManager.getDrawMode();
+    const newMode = currentMode === mode ? DrawMode.LIGHTED : mode;
+
+    this.updateDrawMode(newMode);
+
+    // Update UI select
+    const select = document.getElementById('drawMode') as HTMLSelectElement;
+    if (select) {
+      select.value = newMode;
+    }
+  }
+
+  /**
+   * Change ball count by delta
+   */
+  private changeBallCount(delta: number): void {
+    const currentCount = this.ballParams.count;
+    const newCount = Math.max(5, Math.min(1000, currentCount + delta));
+
+    if (newCount === currentCount) {
+      console.log('⚠️ Ball count limit reached');
+      return;
+    }
+
+    this.ballParams.count = newCount;
+
+    // Update UI slider
+    const slider = document.getElementById('ballCount') as HTMLInputElement;
+    if (slider) {
+      slider.value = newCount.toString();
+    }
+    const valueDisplay = document.getElementById('ballCountValue');
+    if (valueDisplay) {
+      valueDisplay.textContent = newCount.toString();
+    }
+
+    // Apply change
+    this.reset();
+  }
+
+  /**
+   * Change wireframe density by delta
+   */
+  private changeWireframeDensity(delta: number): void {
+    const current = this.sceneManager.getWireframeSegments();
+    const newValue = Math.max(4, Math.min(32, current + delta));
+
+    if (newValue === current) {
+      console.log('⚠️ Wireframe density limit reached');
+      return;
+    }
+
+    this.sceneManager.setWireframeSegments(newValue);
+
+    // Update UI slider
+    const slider = document.getElementById('wireframeSegments') as HTMLInputElement;
+    if (slider) {
+      slider.value = newValue.toString();
+    }
+    const valueDisplay = document.getElementById('wireframeSegmentsValue');
+    if (valueDisplay) {
+      valueDisplay.textContent = newValue.toString();
+    }
+
+    // Recreate meshes if in wireframe mode
+    if (this.sceneManager.getDrawMode() === DrawMode.WIREFRAME) {
+      this.sceneManager.recreateBallMeshes(this.ballSet);
+    }
+  }
+
+  /**
+   * Toggle gravity between DOWN and ZERO
+   */
+  private toggleGravity(): void {
+    const currentPreset = (document.getElementById('gravityPreset') as HTMLSelectElement).value;
+    const newPreset = currentPreset === 'ZERO' ? 'DOWN' : 'ZERO';
+
+    const magnitude = parseFloat((document.getElementById('gravityMagnitude') as HTMLInputElement).value);
+    this.global.setGravityPreset(newPreset, magnitude);
+
+    // Update UI select
+    const select = document.getElementById('gravityPreset') as HTMLSelectElement;
+    if (select) {
+      select.value = newPreset;
+    }
+
+    console.log('🌍 Gravity toggled to:', newPreset, 'with magnitude:', magnitude);
+  }
+
+  /**
+   * Change cube depth by delta
+   */
+  private changeCubeDepth(delta: number): void {
+    const slider = document.getElementById('cubeDepth') as HTMLInputElement;
+    const current = parseFloat(slider.value);
+    const newValue = Math.max(-20, Math.min(20, current + delta));
+
+    if (newValue === current) {
+      console.log('⚠️ Cube depth limit reached');
+      return;
+    }
+
+    slider.value = newValue.toString();
+    const valueDisplay = document.getElementById('cubeDepthValue');
+    if (valueDisplay) {
+      valueDisplay.textContent = newValue.toFixed(1);
+    }
+
+    this.sceneManager.setCubeDepth(newValue * 0.1);
+  }
+
+  /**
+   * Toggle keyboard help overlay
+   */
+  private toggleKeyHelp(): void {
+    const helpDiv = document.getElementById('keyHelp');
+    if (helpDiv) {
+      helpDiv.style.display = helpDiv.style.display === 'none' ? 'block' : 'none';
+    }
   }
 
   /**
