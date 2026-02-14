@@ -480,19 +480,38 @@ const dataURL = renderer.domElement.toDataURL('image/png');
 - `dpsdmain.cpp`
 - `pvmuser.h`
 
-#### 5.3.2 3D-Stereo Display ❌
-**Grund**:
-- Spezielle Hardware erforderlich
-- Kaum noch relevant
-- WebXR/WebVR wären moderne Alternative (separate Implementierung)
+#### 5.2.7 Anaglyph 3D-Stereo Display (Opt-in) ✅
+**Aktivierung**: `rendering.stereoMode = "ANAGLYPH"`
 
-**Entfernte Module**:
-- `stereo.c/h`
-- Stereo-UI-Elemente
+**Vorteil**:
+- Rot/Cyan-Brillen (kostengünstig)
+- Keine spezielle Hardware erforderlich
+- Einfache Implementierung mit Three.js `AnaglyphEffect`
 
-**Alternative** (falls gewünscht):
-- WebXR API für VR-Headsets
-- Anaglyph-Stereo (rot/cyan)
+**Aufwand**: ⭐⭐ (mittel)
+
+**Implementierung**:
+```typescript
+import { AnaglyphEffect } from 'three/examples/jsm/effects/AnaglyphEffect.js';
+
+const anaglyphEffect = new AnaglyphEffect(renderer);
+anaglyphEffect.setSize(width, height);
+
+// Render-Loop
+anaglyphEffect.render(scene, camera);
+```
+
+**UI-Kontrollen**:
+- Stereo aktivieren: Checkbox
+- Eye-Separation: Slider (0.1-10.0)
+
+**Entfernte Module** (Hardware-Stereo):
+- `stereo.c/h` (CrystalEyes-spezifisch)
+- Stereo-Video-Switching
+
+### 5.3 Opt-Out Features (Standard deaktiviert)
+
+#### 5.3.1 PVM Parallelisierung ❌
 
 ---
 
@@ -671,38 +690,51 @@ import { Renderer } from 'expo-three';
 ## 8. Implementierungsplan
 
 ### Phase 1: Kern-Portierung (MVP)
-**Ziel**: Einfache Ball-Simulation im Browser
+**Ziel**: Einfache Ball-Simulation als reine Web-App
+
+**Technologie**:
+- **Vanilla Three.js** (keine Expo-Dependencies)
+- **HTML + CSS** für UI (einfache Buttons & Controls)
+- **Maus-Interaktion**: OrbitControls für Rotation & Zoom
+- **Start-Konfiguration**: 10 Balls
 
 **Aufgaben**:
-1. ✅ TypeScript-Projekt-Setup (Vite/Create-React-App)
+1. ✅ TypeScript-Projekt-Setup (Vite)
 2. ✅ Three.js-Scene mit Kamera & Beleuchtung
-3. ✅ Ball-Klasse mit Physik (Euler-Integration)
-4. ✅ Ball-Ball-Kollision (Brute-Force)
-5. ✅ Ball-Wand-Kollision (Würfel)
-6. ✅ Einfaches React-UI (Start/Stop, Ball-Anzahl)
-7. ✅ Rendering-Loop mit Sync
+3. ✅ OrbitControls (Mausrotation + Scroll-Zoom)
+4. ✅ Ball-Klasse mit Physik (Euler-Integration)
+5. ✅ Ball-Ball-Kollision (Brute-Force)
+6. ✅ Ball-Wand-Kollision (Würfel)
+7. ✅ HTML-UI (Start/Stop/Reset Buttons)
+8. ✅ Rendering-Loop mit Sync
+9. ✅ Initial: 10 Balls
 
-**Aufwand**: 2-3 Wochen (1 Entwickler)
+**Aufwand**: 1-2 Wochen (1 Entwickler)
 
 **Auslieferung**: 
-- Web-App unter `http://localhost:3000`
-- 10-50 Balls @ 60 FPS
+- Standalone Web-App unter `http://localhost:5173` (Vite)
+- 10 Balls (Start) @ 60 FPS
+- Maus: Links-Drag = Rotation, Scroll = Zoom
+- Keine React/Expo-Dependencies
 
-### Phase 2: UI & Konfiguration
-**Ziel**: Vollständige UI-Kontrollen
+### Phase 2: React-UI Migration & Vollständige Kontrollen
+**Ziel**: Von HTML-Buttons zu vollständiger React-UI
 
 **Aufgaben**:
-1. ✅ Alle UI-Panels (View, Run, Ball, Global)
-2. ✅ Kamera-Steuerung (Polar-Koordinaten)
-3. ✅ Draw-Mode-Wechsel (Wireframe, Lighted, etc.)
-4. ✅ Parameter-Persistenz (LocalStorage)
-5. ✅ Statistik-Anzeige (FPS, Checks, Collisions)
-6. ✅ Preset-System (Gravitations-Richtungen)
+1. ✅ Migration: HTML → React-Komponenten
+2. ✅ Alle UI-Panels (View, Run, Ball, Global)
+3. ✅ Material-UI Integration (Sliders, Dropdowns)
+4. ✅ Kamera-Steuerung UI (Polar-Koordinaten zusätzlich zu Maus)
+5. ✅ Draw-Mode-Wechsel (Wireframe, Lighted, etc.)
+6. ✅ Parameter-Persistenz (LocalStorage)
+7. ✅ Statistik-Anzeige (FPS, Checks, Collisions)
+8. ✅ Preset-System (Gravitations-Richtungen)
 
 **Aufwand**: 2 Wochen
 
 **Auslieferung**:
-- Feature-Parität mit Original-UI (ohne PVM/Stereo)
+- Feature-Parität mit Original-UI (ohne PVM)
+- Moderne React-basierte Bedienung
 
 ### Phase 3: Grid-Optimierung (Opt-in)
 **Ziel**: 1000+ Balls in Echtzeit
@@ -823,7 +855,9 @@ import { Renderer } from 'expo-three';
     "showGrid": false,
     "showNumbers": false,
     "antialias": true,
-    "shadows": false
+    "shadows": false,
+    "stereoMode": "NONE",
+    "eyeSeparation": 0.064
   },
   "camera": {
     "fov": 60,
@@ -831,7 +865,8 @@ import { Renderer } from 'expo-three';
     "inclination": 30,
     "distance": 5,
     "near": 0.1,
-    "far": 100
+    "far": 100,
+    "controls": "ORBIT"
   },
   "physics": {
     "cubeRadius": 1.0,
@@ -839,7 +874,7 @@ import { Renderer } from 'expo-three';
     "globalElasticity": 0.9
   },
   "balls": {
-    "count": 30,
+    "count": 10,
     "minRadius": 0.05,
     "maxRadius": 0.15,
     "maxVelocity": 4.0,
@@ -856,7 +891,7 @@ import { Renderer } from 'expo-three';
     "workerSimulation": false,
     "multiWorker": false,
     "imageSave": true,
-    "stereo": false,
+    "anaglyphStereo": false,
     "pvmDistributed": false
   }
 }
@@ -1030,13 +1065,13 @@ describe('Grid', () => {
 | **Worker-Simulation** | ❌ Nein | `useWorker: true` | Overhead +10% | ⭐⭐⭐ |
 | **Multi-Worker** | ❌ Nein | `numWorkers: 4` | Sync-Overhead | ⭐⭐⭐⭐⭐ |
 | **Instanced Rendering** | ❌ Nein | `instancedRendering: true` | GPU +50% | ⭐⭐⭐ |
+| **Anaglyph Stereo** | ❌ Nein | `stereoMode: "ANAGLYPH"` | Niedrig | ⭐⭐ |
 | **Image Save** | ✅ Ja | - | Minimal | ⭐ |
 | **Grid-Visualisierung** | ❌ Nein | `showGrid: true` | Niedrig | ⭐ |
 | **Ball-Nummern** | ❌ Nein | `showNumbers: true` | Niedrig | ⭐ |
 | **Schatten** | ❌ Nein | `shadows: true` | Hoch | ⭐⭐ |
 | **Antialiasing** | ✅ Ja | `antialias: false` | GPU +20% | - |
 | **PVM-Distributed** | ❌ Nein | ❌ Nicht portiert | - | - |
-| **Stereo-Display** | ❌ Nein | ❌ Nicht portiert | - | - |
 
 ---
 
@@ -1047,19 +1082,32 @@ describe('Grid', () => {
 ✅ **Kern-Physik**: Ball-Bewegung, Kollisionen, Gravitation  
 ✅ **3D-Rendering**: Three.js mit Kugeln, Würfel, Beleuchtung  
 ✅ **UI**: React-basierte Kontrollen (ersetzt XView)  
-✅ **Kamera**: Polar-Koordinaten-Steuerung  
+✅ **Kamera**: Polar-Koordinaten-Steuerung + OrbitControls (Maus)  
 ✅ **Konfiguration**: Alle Original-Parameter (Balls, Physik, View)  
 ⚠️ **Grid-Optimierung**: Als Opt-in (empfohlen für >100 Balls)  
 ⚠️ **Worker-Parallelisierung**: Als Opt-in (moderne Alternative zu PVM)  
+⚠️ **Anaglyph Stereo**: Als Opt-in (Rot/Cyan-Brillen)  
 
 ### Was wird NICHT portiert?
 
 ❌ **PVM-Verteilung**: Kein Remote-Daemon-System  
-❌ **3D-Stereo**: Keine CrystalEyes-Hardware-Unterstützung  
-❌ **XView-UI**: Vollständiger Rewrite in React  
+❌ **Hardware-Stereo**: Keine CrystalEyes-Hardware-Unterstützung  
+❌ **XView-UI**: Vollständiger Rewrite in React (nach MVP)  
 ❌ **IRIS-GL spezifische Features**: (z.B. spezielle GL-Modi)  
 
 ### Empfohlene Konfiguration
+
+**MVP (Phase 1 - Vanilla Web-App)**:
+```json
+{
+  "collisionMethod": "EVENT",
+  "useWorker": false,
+  "drawMode": "LIGHTED",
+  "balls": { "count": 10 },
+  "sphereSegments": 16,
+  "controls": "ORBIT"
+}
+```
 
 **Desktop (High-End)**:
 ```json
@@ -1068,7 +1116,8 @@ describe('Grid', () => {
   "useWorker": true,
   "drawMode": "LIGHTED",
   "balls": { "count": 500 },
-  "sphereSegments": 32
+  "sphereSegments": 32,
+  "stereoMode": "NONE"
 }
 ```
 
@@ -1079,7 +1128,21 @@ describe('Grid', () => {
   "useWorker": false,
   "drawMode": "LIGHTED",
   "balls": { "count": 50 },
-  "sphereSegments": 16
+  "sphereSegments": 16,
+  "stereoMode": "NONE"
+}
+```
+
+**Desktop (mit Anaglyph Stereo)**:
+```json
+{
+  "collisionMethod": "EVENT",
+  "useWorker": false,
+  "drawMode": "LIGHTED",
+  "balls": { "count": 30 },
+  "sphereSegments": 16,
+  "stereoMode": "ANAGLYPH",
+  "eyeSeparation": 0.064
 }
 ```
 
