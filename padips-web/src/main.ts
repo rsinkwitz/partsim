@@ -108,6 +108,12 @@ class PaDIPSApp {
       console.log('👁️ Eye separation:', (value / 100).toFixed(3), 'm');
     }, 100);
 
+    // Cube depth for 3D stereo effect (in units, 0.1m per unit)
+    this.setupRangeControl('cubeDepth', (value) => {
+      this.sceneManager.setCubeDepth(value * 0.1); // Scale: slider -20..20 → -2..2 meters
+      console.log('📦 Cube depth:', (value * 0.1).toFixed(1), 'm');
+    }, 10);
+
     // Ball controls
     this.setupRangeControl('ballCount', (value) => {
       this.ballParams.count = value;

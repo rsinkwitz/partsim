@@ -29,6 +29,8 @@ export class SceneManager {
   private drawMode: DrawMode = DrawMode.LIGHTED;
   private sphereSegments: number = 16;
   private anaglyphEnabled: boolean = false;
+  private cubeDepth: number = 0; // Kamera-Tiefe für 3D-Stereo-Effekt
+  private initialCameraY: number = -5; // Standard-Kameraposition auf Y-Achse
 
   constructor(canvas: HTMLCanvasElement) {
     // Scene
@@ -532,6 +534,24 @@ export class SceneManager {
     } else {
       console.warn('⚠️ StereoCamera not initialized');
     }
+  }
+
+  /**
+   * Set cube depth (camera Y-position) for 3D stereo effect
+   * Negative values = camera moves forward (cube+balls come out of screen)
+   * Positive values = camera moves backward (cube+balls go into screen)
+   */
+  setCubeDepth(depth: number): void {
+    this.cubeDepth = depth;
+
+    // Move camera along Y-axis (view direction)
+    // Camera is initially at Y=-5, negative depth brings it closer (objects appear to pop out)
+    this.camera.position.y = this.initialCameraY - depth;
+
+    // Update lookAt to keep looking at origin
+    this.camera.lookAt(0, 0, 0);
+
+    console.log('📦 Cube depth set to:', depth.toFixed(1), '(Camera Y:', this.camera.position.y.toFixed(1), ')');
   }
 
   /**
