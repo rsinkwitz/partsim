@@ -4,7 +4,6 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { AnaglyphEffect } from 'three/examples/jsm/effects/AnaglyphEffect.js';
 import { Ball } from '../core/Ball';
 import { BallSet } from '../core/BallSet';
 import { Parallelogram } from '../core/Parallelogram';
@@ -14,8 +13,14 @@ export class SceneManager {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
-  private anaglyphEffect: AnaglyphEffect | null = null;
+  private stereoCamera: THREE.StereoCamera; // Eigene StereoCamera für volle Kontrolle!
   private controls: OrbitControls;
+
+  // Für manuelles Anaglyph-Rendering
+  private renderTargetL: THREE.WebGLRenderTarget | null = null;
+  private renderTargetR: THREE.WebGLRenderTarget | null = null;
+  private anaglyphMaterial: THREE.ShaderMaterial | null = null;
+  private anaglyphQuad: THREE.Mesh | null = null;
 
   private ballMeshes: Map<number, THREE.Mesh | THREE.Points> = new Map();
   private wallMeshes: THREE.Mesh[] = [];
@@ -28,7 +33,7 @@ export class SceneManager {
   constructor(canvas: HTMLCanvasElement) {
     // Scene
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x000000);
+    this.scene.background = new THREE.Color(0x666666); // Grau wie im Original IRIX
 
     // Camera (Z-Up coordinate system like original IRIX)
     this.camera = new THREE.PerspectiveCamera(
@@ -56,43 +61,59 @@ export class SceneManager {
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
 
-    // Anaglyph Effect - konfiguriert für Rot-Blau Brille (links rot, rechts blau)
-    this.anaglyphEffect = new AnaglyphEffect(this.renderer);
-    this.anaglyphEffect.setSize(window.innerWidth, window.innerHeight);
+    // Anaglyph Effect - MANUELL für volle Kontrolle
+    // Eigene StereoCamera
+    this.stereoCamera = new THREE.StereoCamera();
+    this.stereoCamera.eyeSep = 0.080; // 80mm = User's Augenabstand
 
-    // Setze initiale Eye-Separation (80mm = User's Augenabstand)
-    // AnaglyphEffect verwendet intern eine StereoCamera
-    const stereoCamera = (this.anaglyphEffect as any)._stereo;
-    if (stereoCamera) {
-      stereoCamera.eyeSep = 0.080;
-      console.log('🕶️ Initial Eye-Separation set to:', stereoCamera.eyeSep, 'meters');
-    }
+    // Render-Targets für linkes und rechtes Auge
+    const params = { minFilter: THREE.LinearFilter, magFilter: THREE.NearestFilter };
+    this.renderTargetL = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, params);
+    this.renderTargetR = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, params);
 
-    // Passe Farbmatrizen für Rot-Blau an
-    // "True Color" Anaglyph Methode für Rot-Blau
-    // Links behält volle Farbinfo, Rechts nur Blau-Komponente
+    // Anaglyph Shader Material (Rot-Blau)
+    this.anaglyphMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        mapLeft: { value: this.renderTargetL.texture },
+        mapRight: { value: this.renderTargetR.texture },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D mapLeft;
+        uniform sampler2D mapRight;
+        varying vec2 vUv;
 
-    // Matrix3 Format: Output = Matrix × Input
-    // Zeile 1 = R_out, Zeile 2 = G_out, Zeile 3 = B_out
-    // Spalte 1 = R_in, Spalte 2 = G_in, Spalte 3 = B_in
+        void main() {
+          vec4 colorL = texture2D(mapLeft, vUv);
+          vec4 colorR = texture2D(mapRight, vUv);
 
-    // Links: Volle Farbe aber nur Rot-Ausgabe (für rotes Brillenglas)
-    this.anaglyphEffect.colorMatrixLeft.fromArray([
-      1.0,  0.0,  0.0,   // R_out = Rot durchlassen
-      0.0,  1.0,  0.0,   // G_out = Grün durchlassen
-      0.0,  0.0,  1.0    // B_out = Blau durchlassen
-    ]);
+          // Rot-Blau Anaglyph mit Luminanz und Helligkeitsverstärkung
+          float lumL = 0.299 * colorL.r + 0.587 * colorL.g + 0.114 * colorL.b;
+          float lumR = 0.299 * colorR.r + 0.587 * colorR.g + 0.114 * colorR.b;
 
-    // Rechts: Verschiebe alles nach Blau (für blaues Brillenglas)
-    this.anaglyphEffect.colorMatrixRight.fromArray([
-      0.0,  0.0,  0.0,   // R_out = kein Rot
-      0.0,  0.0,  0.0,   // G_out = kein Grün
-      0.299, 0.587, 0.114 // B_out = Luminanz (alle Farben sichtbar als Blau)
-    ]);
+          // Verstärke Helligkeit (Gain) und füge Grün-Anteil für bessere Sichtbarkeit
+          float gain = 1.5;  // 50% heller
+          float red = lumL * gain;
+          float green = (lumL + lumR) * 0.3 * gain;  // Grün-Anteil für Helligkeit
+          float blue = lumR * gain;
 
-    console.log('🕶️ Anaglyph Effect initialized - Eye Sep:', (this.anaglyphEffect as any).eyeSep);
-    console.log('🕶️ Color Matrix Left (Full Color):', this.anaglyphEffect.colorMatrixLeft.elements);
-    console.log('🕶️ Color Matrix Right (Luminanz → Blue):', this.anaglyphEffect.colorMatrixRight.elements);
+          gl_FragColor = vec4(red, green, blue, 1.0);
+        }
+      `
+    });
+
+    // Fullscreen Quad für Anaglyph-Compositing
+    const quadGeometry = new THREE.PlaneGeometry(2, 2);
+    this.anaglyphQuad = new THREE.Mesh(quadGeometry, this.anaglyphMaterial);
+
+    console.log('🕶️ Manual Anaglyph rendering initialized');
+    console.log('🕶️ StereoCamera eyeSep:', this.stereoCamera.eyeSep, 'meters');
 
     // Lighting
     this.setupLighting();
@@ -222,6 +243,41 @@ export class SceneManager {
   }
 
   /**
+   * Create cube edges (yellow lines)
+   */
+  private createCubeEdges(walls: Parallelogram[]): THREE.LineSegments {
+    // Sammle alle einzigartigen Kanten des Würfels
+    const edges: number[] = [];
+
+    for (const wall of walls) {
+      // Jede Wall hat 4 Kanten: v0-v1, v1-v2, v2-v3, v3-v0
+      edges.push(
+        wall.v0.x, wall.v0.y, wall.v0.z,
+        wall.v1.x, wall.v1.y, wall.v1.z,
+
+        wall.v1.x, wall.v1.y, wall.v1.z,
+        wall.v2.x, wall.v2.y, wall.v2.z,
+
+        wall.v2.x, wall.v2.y, wall.v2.z,
+        wall.v3.x, wall.v3.y, wall.v3.z,
+
+        wall.v3.x, wall.v3.y, wall.v3.z,
+        wall.v0.x, wall.v0.y, wall.v0.z
+      );
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(edges), 3));
+
+    const material = new THREE.LineBasicMaterial({
+      color: 0x00f0f0,  // Cyan wie im Original IRIX (war 0xff00f0f0)
+      linewidth: 2,
+    });
+
+    return new THREE.LineSegments(geometry, material);
+  }
+
+  /**
    * Initialize scene with balls and walls
    */
   initializeScene(ballSet: BallSet, walls: Parallelogram[]): void {
@@ -237,6 +293,10 @@ export class SceneManager {
       this.wallMeshes.push(mesh);
       this.wallGroup.add(mesh);
     }
+
+    // Add yellow cube edges
+    const cubeEdges = this.createCubeEdges(walls);
+    this.wallGroup.add(cubeEdges);
 
     // No rotation - cube faces aligned with axes
     // Front/back faces parallel to screen (XZ-plane)
@@ -371,9 +431,34 @@ export class SceneManager {
   render(): void {
     this.controls.update();
 
-    if (this.anaglyphEnabled && this.anaglyphEffect) {
-      this.anaglyphEffect.render(this.scene, this.camera);
+    if (this.anaglyphEnabled && this.stereoCamera && this.renderTargetL && this.renderTargetR && this.anaglyphMaterial) {
+      // Manuelles Anaglyph-Rendering
+
+      // 1. Update StereoCamera mit aktueller Hauptkamera
+      this.stereoCamera.update(this.camera);
+
+      // 2. Render linkes Auge
+      this.renderer.setRenderTarget(this.renderTargetL);
+      this.renderer.clear();
+      this.renderer.render(this.scene, this.stereoCamera.cameraL);
+
+      // 3. Render rechtes Auge
+      this.renderer.setRenderTarget(this.renderTargetR);
+      this.renderer.clear();
+      this.renderer.render(this.scene, this.stereoCamera.cameraR);
+
+      // 4. Composite Rot-Blau Anaglyph
+      this.renderer.setRenderTarget(null);
+
+      // Render Fullscreen Quad mit Anaglyph-Shader
+      if (this.anaglyphQuad) {
+        const orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        const orthoScene = new THREE.Scene();
+        orthoScene.add(this.anaglyphQuad);
+        this.renderer.render(orthoScene, orthoCamera);
+      }
     } else {
+      // Normales Rendering
       this.renderer.render(this.scene, this.camera);
     }
   }
@@ -384,19 +469,20 @@ export class SceneManager {
   debugAnaglyph(): void {
     console.group('🔍 Anaglyph Debug');
     console.log('Anaglyph Enabled:', this.anaglyphEnabled);
-    console.log('Anaglyph Effect exists:', !!this.anaglyphEffect);
-    if (this.anaglyphEffect) {
-      const stereoCamera = (this.anaglyphEffect as any)._stereo;
-      console.log('StereoCamera exists:', !!stereoCamera);
-      if (stereoCamera) {
-        console.log('Eye Separation (StereoCamera):', stereoCamera.eyeSep, 'meters');
-        console.log('Aspect:', stereoCamera.aspect);
-      }
-      console.log('Color Matrix Left (Full Color):', this.anaglyphEffect.colorMatrixLeft.elements);
-      console.log('Color Matrix Right (Luminanz → Blue):', this.anaglyphEffect.colorMatrixRight.elements);
-      console.log('Expected Left: [1, 0, 0, 0, 1, 0, 0, 0, 1] - Identity (Full Color)');
-      console.log('Expected Right: [0, 0, 0, 0, 0, 0, 0.299, 0.587, 0.114] - Luminanz → Blue');
+    console.log('Manual Anaglyph Rendering Active');
+    console.log('StereoCamera exists:', !!this.stereoCamera);
+
+    if (this.stereoCamera) {
+      console.log('Eye Separation:', this.stereoCamera.eyeSep, 'meters');
+      console.log('Aspect:', this.stereoCamera.aspect);
     }
+
+    console.log('Render Targets:', {
+      left: !!this.renderTargetL,
+      right: !!this.renderTargetR
+    });
+    console.log('Anaglyph Material:', !!this.anaglyphMaterial);
+    console.log('Shader: Red-Blue Luminance-based Anaglyph');
     console.groupEnd();
   }
 
@@ -408,8 +494,10 @@ export class SceneManager {
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
 
-    if (this.anaglyphEffect) {
-      this.anaglyphEffect.setSize(window.innerWidth, window.innerHeight);
+    // Update Anaglyph Render-Targets
+    if (this.renderTargetL && this.renderTargetR) {
+      this.renderTargetL.setSize(window.innerWidth, window.innerHeight);
+      this.renderTargetR.setSize(window.innerWidth, window.innerHeight);
     }
   }
 
@@ -426,9 +514,9 @@ export class SceneManager {
   setAnaglyphEnabled(enabled: boolean): void {
     this.anaglyphEnabled = enabled;
     console.log('🕶️ Anaglyph Stereo:', enabled ? 'ON' : 'OFF');
-    if (enabled && this.anaglyphEffect) {
-      console.log('🕶️ Eye separation:', (this.anaglyphEffect as any).eyeSep, 'meters');
-      console.log('🕶️ Rendering mit Red-Blue Anaglyph');
+    if (enabled && this.stereoCamera) {
+      console.log('🕶️ Eye separation:', this.stereoCamera.eyeSep, 'meters');
+      console.log('🕶️ Manual Red-Blue Anaglyph rendering active');
     }
   }
 
@@ -437,19 +525,12 @@ export class SceneManager {
    * Default is 0.064 (64mm - average human eye distance)
    */
   setEyeSeparation(separation: number): void {
-    if (this.anaglyphEffect) {
-      // AnaglyphEffect verwendet intern eine StereoCamera (_stereo)
-      // Wir müssen auf die StereoCamera zugreifen um eyeSep zu setzen
-      const stereoCamera = (this.anaglyphEffect as any)._stereo;
-      if (stereoCamera) {
-        stereoCamera.eyeSep = separation;
-        console.log('👁️ Eye separation set to:', separation.toFixed(3), 'meters');
-        console.log('👁️ StereoCamera eyeSep:', stereoCamera.eyeSep);
-      } else {
-        console.warn('⚠️ StereoCamera not found in AnaglyphEffect');
-      }
+    if (this.stereoCamera) {
+      this.stereoCamera.eyeSep = separation;
+      console.log('👁️ Eye separation set to:', separation.toFixed(3), 'meters');
+      console.log('👁️ StereoCamera eyeSep:', this.stereoCamera.eyeSep);
     } else {
-      console.warn('⚠️ Cannot set eye separation - anaglyphEffect not initialized');
+      console.warn('⚠️ StereoCamera not initialized');
     }
   }
 
