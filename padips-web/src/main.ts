@@ -53,6 +53,9 @@ class PaDIPSApp {
     this.updateStats();
 
     console.log('🎱 PaDIPS initialized with', this.ballSet.num, 'balls');
+
+    // Auto-start simulation
+    this.start();
   }
 
   /**
@@ -205,11 +208,14 @@ class PaDIPSApp {
    * Reset simulation
    */
   reset(): void {
+    console.log('🔄 Reset called');
     const wasRunning = this.isRunning;
     this.stop();
 
+    console.log('🎱 Generating', this.ballParams.count, 'balls with params:', this.ballParams);
     // Generate new balls with current parameters
     this.ballSet = generateBalls(this.ballParams);
+    console.log('✅ Generated', this.ballSet.num, 'balls');
 
     // Reinitialize physics engine
     this.physicsEngine = new PhysicsEngine(
@@ -219,14 +225,21 @@ class PaDIPSApp {
     );
 
     // Reinitialize scene
+    console.log('🎬 Calling initializeScene with', this.ballSet.num, 'balls');
     this.sceneManager.initializeScene(this.ballSet, this.walls);
+    console.log('✅ initializeScene complete');
+
+    // Force initial render to show balls immediately
+    this.sceneManager.render();
+    console.log('🖼️ Initial render done');
 
     // Update stats
     this.updateStats();
 
-    console.log('🔄 Simulation reset with', this.ballSet.num, 'balls');
+    console.log('🔄 Simulation reset with', this.ballSet.num, 'balls, wasRunning:', wasRunning);
 
     if (wasRunning) {
+      console.log('▶ Auto-restarting simulation');
       this.start();
     }
   }
@@ -268,7 +281,7 @@ class PaDIPSApp {
    */
   private updateStats(): void {
     const fpsEl = document.getElementById('fps');
-    const ballCountEl = document.getElementById('ballCount');
+    const ballCountEl = document.getElementById('ballCountStat');
     const generationEl = document.getElementById('generation');
     const checksEl = document.getElementById('checks');
     const collisionsEl = document.getElementById('collisions');
@@ -289,6 +302,13 @@ class PaDIPSApp {
     this.stop();
     this.sceneManager.dispose();
   }
+
+  /**
+   * Debug: Dump scene state
+   */
+  debugScene(): void {
+    this.sceneManager.dumpSceneState();
+  }
 }
 
 // Initialize app
@@ -302,3 +322,8 @@ window.addEventListener('beforeunload', () => {
 
 // Export for debugging
 (window as any).padips = app;
+(window as any).debugScene = () => app.debugScene();
+
+console.log('💡 Debug-Befehle verfügbar:');
+console.log('  window.padips - Zugriff auf App');
+console.log('  debugScene() - Scene-Status ausgeben');

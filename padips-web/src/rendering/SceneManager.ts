@@ -89,22 +89,24 @@ export class SceneManager {
    * Create ball mesh
    */
   private createBallMesh(ball: Ball): THREE.Mesh | THREE.Points {
-    const geometry = new THREE.SphereGeometry(
-      ball.radius,
-      this.sphereSegments,
-      this.sphereSegments
-    );
+    console.log('🔨 createBallMesh - DrawMode:', this.drawMode, 'Ball pos:', ball.position, 'Radius:', ball.radius, 'Color:', ball.color.toString(16));
 
     let material: THREE.Material;
     let mesh: THREE.Mesh | THREE.Points;
 
     switch (this.drawMode) {
       case DrawMode.WIREFRAME:
+        const wireframeGeometry = new THREE.SphereGeometry(
+          ball.radius,
+          this.sphereSegments,
+          this.sphereSegments
+        );
         material = new THREE.MeshBasicMaterial({
           color: ball.color,
           wireframe: true,
         });
-        mesh = new THREE.Mesh(geometry, material);
+        mesh = new THREE.Mesh(wireframeGeometry, material);
+        mesh.position.copy(ball.position);
         break;
 
       case DrawMode.POINTS:
@@ -128,19 +130,21 @@ export class SceneManager {
 
       case DrawMode.LIGHTED:
       default:
+        const lightedGeometry = new THREE.SphereGeometry(
+          ball.radius,
+          this.sphereSegments,
+          this.sphereSegments
+        );
         material = new THREE.MeshPhongMaterial({
           color: ball.color,
           shininess: 30,
         });
-        mesh = new THREE.Mesh(geometry, material);
+        mesh = new THREE.Mesh(lightedGeometry, material);
+        mesh.position.copy(ball.position);
         break;
     }
 
-    // Set position for meshes (Points position is in geometry)
-    if (mesh instanceof THREE.Mesh) {
-      mesh.position.copy(ball.position);
-    }
-
+    console.log('✅ createBallMesh created:', mesh.type, 'Has geometry:', !!mesh.geometry, 'Has material:', !!mesh.material);
     return mesh;
   }
 
@@ -178,6 +182,8 @@ export class SceneManager {
    * Initialize scene with balls and walls
    */
   initializeScene(ballSet: BallSet, walls: Parallelogram[]): void {
+    console.log('🎬 InitializeScene called - Balls:', ballSet.num, 'DrawMode:', this.drawMode);
+
     // Clear existing meshes
     this.clearScene();
 
@@ -195,35 +201,55 @@ export class SceneManager {
     this.scene.add(this.wallGroup);
 
     // Add balls
+    let addedBalls = 0;
     for (let i = 0; i < ballSet.num; i++) {
       const ball = ballSet.get(i);
       if (ball) {
         const mesh = this.createBallMesh(ball);
         this.ballMeshes.set(i, mesh);
         this.scene.add(mesh);
+        addedBalls++;
       }
     }
+
+    console.log('✅ Added', addedBalls, 'ball meshes to scene');
+    console.log('📊 Scene children count:', this.scene.children.length);
+    console.log('📊 Ball meshes in map:', this.ballMeshes.size);
+
+    // List all scene children for debugging
+    console.log('📋 Scene children types:', this.scene.children.map(c => c.type).join(', '));
   }
 
   /**
    * Update ball positions from simulation
    */
   updateBalls(ballSet: BallSet): void {
+    let missingCount = 0;
+
     for (let i = 0; i < ballSet.num; i++) {
       const ball = ballSet.get(i);
       const mesh = this.ballMeshes.get(i);
 
-      if (ball && mesh) {
-        if (this.drawMode === DrawMode.POINTS && mesh instanceof THREE.Points) {
-          // For points, update geometry position attribute
-          const positions = mesh.geometry.attributes.position;
-          positions.setXYZ(0, ball.position.x, ball.position.y, ball.position.z);
-          positions.needsUpdate = true;
-        } else {
-          // For meshes, update position
-          mesh.position.copy(ball.position);
-        }
+      if (!ball || !mesh) {
+        missingCount++;
+        continue;
       }
+
+      if (this.drawMode === DrawMode.POINTS && mesh instanceof THREE.Points) {
+        // For points, update geometry position attribute
+        const positions = mesh.geometry.attributes.position;
+        positions.setXYZ(0, ball.position.x, ball.position.y, ball.position.z);
+        positions.needsUpdate = true;
+      } else {
+        // For meshes, update position
+        mesh.position.copy(ball.position);
+      }
+    }
+
+    // Only log if there's a problem
+    if (missingCount > 0) {
+      console.error(`❌ updateBalls: ${missingCount}/${ballSet.num} balls missing!`);
+      console.log('📊 BallSet.num:', ballSet.num, 'Meshes:', this.ballMeshes.size);
     }
   }
 
@@ -231,6 +257,8 @@ export class SceneManager {
    * Clear scene
    */
   private clearScene(): void {
+    console.log('🧹 clearScene - Removing', this.ballMeshes.size, 'ball meshes');
+
     // Remove ball meshes
     for (const mesh of this.ballMeshes.values()) {
       this.scene.remove(mesh);
@@ -242,10 +270,12 @@ export class SceneManager {
       }
     }
     this.ballMeshes.clear();
+    console.log('✅ Ball meshes cleared');
 
     // Remove wall group
     if (this.wallGroup) {
       this.scene.remove(this.wallGroup);
+      console.log('✅ Wall group removed');
     }
 
     // Remove wall meshes
@@ -259,6 +289,7 @@ export class SceneManager {
     }
     this.wallMeshes = [];
     this.wallGroup = null;
+    console.log('✅ clearScene complete');
   }
 
   /**
@@ -323,6 +354,27 @@ export class SceneManager {
     this.clearScene();
     this.renderer.dispose();
     this.controls.dispose();
+  }
+
+  /**
+   * Debug: Dump scene state to console
+   */
+  dumpSceneState(): void {
+    console.group('🔍 Scene State Debug');
+    console.log('Draw Mode:', this.drawMode);
+    console.log('Ball Meshes in Map:', this.ballMeshes.size);
+    console.log('Scene Children:', this.scene.children.length);
+    console.log('Wall Group:', this.wallGroup ? 'exists' : 'null');
+    console.log('Scene Children Details:');
+    this.scene.children.forEach((child, i) => {
+      console.log(`  [${i}] Type: ${child.type}, Visible: ${child.visible}, Name: ${child.name || '(unnamed)'}`);
+      if (child instanceof THREE.Mesh || child instanceof THREE.Points) {
+        console.log(`      Position:`, child.position);
+        console.log(`      Has Geometry:`, !!child.geometry);
+        console.log(`      Has Material:`, !!child.material);
+      }
+    });
+    console.groupEnd();
   }
 }
 
