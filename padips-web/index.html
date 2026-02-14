@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PaDIPS - Particle Simulation</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        overflow: hidden;
+        background: #000;
+      }
+
+      #app {
+        width: 100vw;
+        height: 100vh;
+        position: relative;
+      }
+
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      #controls {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        background: rgba(255, 255, 255, 0.95);
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        min-width: 280px;
+        max-height: calc(100vh - 40px);
+        overflow-y: auto;
+      }
+
+      h1 {
+        font-size: 20px;
+        margin-bottom: 15px;
+        color: #333;
+      }
+
+      h2 {
+        font-size: 14px;
+        margin: 15px 0 10px 0;
+        color: #555;
+        border-bottom: 1px solid #ddd;
+        padding-bottom: 5px;
+      }
+
+      .control-group {
+        margin-bottom: 12px;
+      }
+
+      .control-group label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 5px;
+        font-weight: 500;
+      }
+
+      .control-group label .value {
+        color: #333;
+        font-weight: 600;
+      }
+
+      input[type="range"] {
+        width: 100%;
+        height: 6px;
+        border-radius: 3px;
+        background: #ddd;
+        outline: none;
+        -webkit-appearance: none;
+      }
+
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #4CAF50;
+        cursor: pointer;
+      }
+
+      input[type="range"]::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #4CAF50;
+        cursor: pointer;
+        border: none;
+      }
+
+      input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+        margin-right: 8px;
+        vertical-align: middle;
+      }
+
+      .checkbox-group {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+
+      .checkbox-group label {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        font-size: 13px;
+        color: #333;
+      }
+
+      select {
+        width: 100%;
+        padding: 6px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 13px;
+        background: white;
+        cursor: pointer;
+      }
+
+      button {
+        background: #4CAF50;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        transition: background 0.3s;
+        margin-right: 5px;
+        margin-bottom: 5px;
+      }
+
+      button:hover {
+        background: #45a049;
+      }
+
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+
+      button.stop {
+        background: #f44336;
+      }
+
+      button.stop:hover {
+        background: #da190b;
+      }
+
+      button.reset {
+        background: #2196F3;
+      }
+
+      button.reset:hover {
+        background: #0b7dda;
+      }
+
+      #stats {
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 1px solid #ddd;
+        font-size: 12px;
+        color: #666;
+      }
+
+      #stats div {
+        margin-bottom: 5px;
+      }
+
+      #stats span {
+        font-weight: 600;
+        color: #333;
+      }
+
+      .info {
+        position: absolute;
+        bottom: 20px;
+        left: 20px;
+        background: rgba(255, 255, 255, 0.9);
+        padding: 10px 15px;
+        border-radius: 4px;
+        font-size: 11px;
+        color: #666;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="canvas"></canvas>
+
+      <div id="controls">
+        <h1>🎱 PaDIPS</h1>
+
+        <div class="control-group">
+          <button id="startBtn">▶ Start</button>
+          <button id="stopBtn" class="stop" disabled>⏸ Stop</button>
+          <button id="resetBtn" class="reset">🔄 Reset</button>
+        </div>
+
+        <h2>⚙️ Simulation</h2>
+
+        <div class="control-group">
+          <label>
+            <span>Calc Factor</span>
+            <span class="value" id="calcFactorValue">10</span>
+          </label>
+          <input type="range" id="calcFactor" min="1" max="50" value="10" step="1">
+        </div>
+
+        <div class="checkbox-group">
+          <label>
+            <input type="checkbox" id="collisionsEnabled" checked>
+            <span>Collisions Enabled</span>
+          </label>
+        </div>
+
+        <h2>🎨 Rendering</h2>
+
+        <div class="control-group">
+          <label>
+            <span>Draw Mode</span>
+          </label>
+          <select id="drawMode">
+            <option value="LIGHTED">Lighted</option>
+            <option value="WIREFRAME">Wireframe</option>
+            <option value="POINTS">Points</option>
+          </select>
+        </div>
+
+        <div class="checkbox-group">
+          <label>
+            <input type="checkbox" id="anaglyphStereo">
+            <span>🕶️ Anaglyph Stereo</span>
+          </label>
+        </div>
+
+        <h2>🎱 Balls</h2>
+
+        <div class="control-group">
+          <label>
+            <span>Number of Balls</span>
+            <span class="value" id="ballCountValue">30</span>
+          </label>
+          <input type="range" id="ballCount" min="5" max="100" value="30" step="5">
+        </div>
+
+        <div class="control-group">
+          <label>
+            <span>Min Radius</span>
+            <span class="value" id="minRadiusValue">0.05</span>
+          </label>
+          <input type="range" id="minRadius" min="0.02" max="0.20" value="0.05" step="0.01">
+        </div>
+
+        <div class="control-group">
+          <label>
+            <span>Max Radius</span>
+            <span class="value" id="maxRadiusValue">0.15</span>
+          </label>
+          <input type="range" id="maxRadius" min="0.02" max="0.30" value="0.15" step="0.01">
+        </div>
+
+        <div class="control-group">
+          <label>
+            <span>Max Velocity</span>
+            <span class="value" id="maxVelocityValue">2.0</span>
+          </label>
+          <input type="range" id="maxVelocity" min="0.5" max="10.0" value="2.0" step="0.5">
+        </div>
+
+        <div class="control-group">
+          <label>
+            <span>Elasticity</span>
+            <span class="value" id="elasticityValue">0.90</span>
+          </label>
+          <input type="range" id="elasticity" min="0.0" max="1.0" value="0.90" step="0.05">
+        </div>
+
+        <h2>🌍 Physics</h2>
+
+        <div class="control-group">
+          <label>
+            <span>Gravity Preset</span>
+          </label>
+          <select id="gravityPreset">
+            <option value="DOWN">⬇️ Down (Default)</option>
+            <option value="UP">⬆️ Up</option>
+            <option value="LEFT">⬅️ Left</option>
+            <option value="RIGHT">➡️ Right</option>
+            <option value="FRONT">🔽 Front</option>
+            <option value="REAR">🔼 Rear</option>
+            <option value="ZERO">🚫 Zero</option>
+          </select>
+        </div>
+
+        <div class="control-group">
+          <label>
+            <span>Gravity Magnitude</span>
+            <span class="value" id="gravityMagnitudeValue">9.81</span>
+          </label>
+          <input type="range" id="gravityMagnitude" min="0" max="20" value="9.81" step="0.5">
+        </div>
+
+        <div class="control-group">
+          <label>
+            <span>Global Elasticity</span>
+            <span class="value" id="globalElasticityValue">0.90</span>
+          </label>
+          <input type="range" id="globalElasticity" min="0.0" max="1.0" value="0.90" step="0.05">
+        </div>
+
+        <div id="stats">
+          <div><strong>📊 Stats</strong></div>
+          <div>FPS: <span id="fps">0</span></div>
+          <div>Balls: <span id="ballCountStat">0</span></div>
+          <div>Generation: <span id="generation">0</span></div>
+          <div>Checks: <span id="checks">0</span></div>
+          <div>Collisions: <span id="collisions">0</span></div>
+          <div>Calc Time: <span id="calcTime">0</span> ms</div>
+        </div>
+      </div>
+
+      <div class="info">
+        💡 Mouse: Left-drag to rotate, Scroll to zoom
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
