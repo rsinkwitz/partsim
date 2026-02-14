@@ -28,6 +28,13 @@ export enum DrawMode {
   TEXTURED = 'TEXTURED',
 }
 
+// 3D Stereo Modes
+export enum StereoMode {
+  OFF = 'off',
+  ANAGLYPH = 'anaglyph',
+  TOP_BOTTOM = 'topbottom',
+}
+
 // Collision detection method
 export enum CalculationMethod {
   EVENT = 'EVENT', // Brute-Force O(n²)

@@ -321,11 +321,24 @@
               </select>
           </div>
 
-          <div class="checkbox-group">
+          <div class="control-group">
               <label>
-                  <input type="checkbox" id="anaglyphStereo">
-                  <span>🕶️ Anaglyph Stereo (Rot-Blau)</span>
+                  <span>3D Stereo Mode</span>
               </label>
+              <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+                  <label style="display: flex; align-items: center; cursor: pointer; font-size: 13px;">
+                      <input type="radio" name="stereoMode" value="off" checked style="margin-right: 8px;">
+                      <span>❌ Off</span>
+                  </label>
+                  <label style="display: flex; align-items: center; cursor: pointer; font-size: 13px;">
+                      <input type="radio" name="stereoMode" value="anaglyph" style="margin-right: 8px;">
+                      <span>🕶️ Anaglyph (Red-Blue Glasses)</span>
+                  </label>
+                  <label style="display: flex; align-items: center; cursor: pointer; font-size: 13px;">
+                      <input type="radio" name="stereoMode" value="topbottom" style="margin-right: 8px;">
+                      <span>📺 Top-Bottom Split Screen</span>
+                  </label>
+              </div>
           </div>
 
           <div class="control-group">

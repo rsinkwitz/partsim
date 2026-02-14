@@ -7,7 +7,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { Ball } from '../core/Ball';
 import { BallSet } from '../core/BallSet';
 import { Parallelogram } from '../core/Parallelogram';
-import { DrawMode } from '../core/Constants';
+import { DrawMode, StereoMode } from '../core/Constants';
 
 export class SceneManager {
   private scene: THREE.Scene;
@@ -28,7 +28,7 @@ export class SceneManager {
 
   private drawMode: DrawMode = DrawMode.LIGHTED;
   private sphereSegments: number = 16;
-  private anaglyphEnabled: boolean = false;
+  private stereoMode: StereoMode = StereoMode.OFF;
   private cubeDepth: number = 0; // Kamera-Distanz-Offset für 3D-Stereo-Effekt
   private initialCameraDistance: number = 0; // Initiale Distanz von Kamera zu Target
 
@@ -449,45 +449,70 @@ export class SceneManager {
   render(): void {
     this.controls.update();
 
-    if (this.anaglyphEnabled && this.stereoCamera && this.renderTargetL && this.renderTargetR && this.anaglyphMaterial) {
-      // Manuelles Anaglyph-Rendering
+    // Handle different stereo modes
+    if (this.stereoMode === StereoMode.OFF) {
+      // Normal mono rendering
+      this.renderer.render(this.scene, this.camera);
 
-      // 1. Update StereoCamera mit aktueller Hauptkamera
+    } else if (this.stereoMode === StereoMode.ANAGLYPH && this.stereoCamera && this.renderTargetL && this.renderTargetR && this.anaglyphMaterial) {
+      // Anaglyph stereo rendering (Red-Blue)
+
+      // 1. Update StereoCamera
       this.stereoCamera.update(this.camera);
 
-      // 2. Render linkes Auge
+      // 2. Render left eye
       this.renderer.setRenderTarget(this.renderTargetL);
       this.renderer.clear();
       this.renderer.render(this.scene, this.stereoCamera.cameraL);
 
-      // 3. Render rechtes Auge
+      // 3. Render right eye
       this.renderer.setRenderTarget(this.renderTargetR);
       this.renderer.clear();
       this.renderer.render(this.scene, this.stereoCamera.cameraR);
 
-      // 4. Composite Rot-Blau Anaglyph
+      // 4. Composite Red-Blue Anaglyph
       this.renderer.setRenderTarget(null);
 
-      // Render Fullscreen Quad mit Anaglyph-Shader
       if (this.anaglyphQuad) {
         const orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
         const orthoScene = new THREE.Scene();
         orthoScene.add(this.anaglyphQuad);
         this.renderer.render(orthoScene, orthoCamera);
       }
-    } else {
-      // Normales Rendering
-      this.renderer.render(this.scene, this.camera);
+
+    } else if (this.stereoMode === StereoMode.TOP_BOTTOM && this.stereoCamera) {
+      // Top-Bottom split-screen stereo
+
+      // 1. Update StereoCamera
+      this.stereoCamera.update(this.camera);
+
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      const halfHeight = height / 2;
+
+      // 2. Render top half (left eye)
+      this.renderer.setViewport(0, halfHeight, width, halfHeight);
+      this.renderer.setScissor(0, halfHeight, width, halfHeight);
+      this.renderer.setScissorTest(true);
+      this.renderer.render(this.scene, this.stereoCamera.cameraL);
+
+      // 3. Render bottom half (right eye)
+      this.renderer.setViewport(0, 0, width, halfHeight);
+      this.renderer.setScissor(0, 0, width, halfHeight);
+      this.renderer.render(this.scene, this.stereoCamera.cameraR);
+
+      // 4. Reset viewport and scissor
+      this.renderer.setScissorTest(false);
+      this.renderer.setViewport(0, 0, width, height);
     }
   }
 
   /**
-   * Debug: Test anaglyph effect
+   * Debug: Test stereo effect
    */
-  debugAnaglyph(): void {
-    console.group('🔍 Anaglyph Debug');
-    console.log('Anaglyph Enabled:', this.anaglyphEnabled);
-    console.log('Manual Anaglyph Rendering Active');
+  debugStereo(): void {
+    console.group('🔍 Stereo Debug');
+    console.log('Stereo Mode:', this.stereoMode);
     console.log('StereoCamera exists:', !!this.stereoCamera);
 
     if (this.stereoCamera) {
@@ -495,13 +520,24 @@ export class SceneManager {
       console.log('Aspect:', this.stereoCamera.aspect);
     }
 
-    console.log('Render Targets:', {
-      left: !!this.renderTargetL,
-      right: !!this.renderTargetR
-    });
-    console.log('Anaglyph Material:', !!this.anaglyphMaterial);
-    console.log('Shader: Red-Blue Luminance-based Anaglyph');
+    if (this.stereoMode === StereoMode.ANAGLYPH) {
+      console.log('Render Targets:', {
+        left: !!this.renderTargetL,
+        right: !!this.renderTargetR
+      });
+      console.log('Anaglyph Material:', !!this.anaglyphMaterial);
+      console.log('Shader: Red-Blue Dubois-style Anaglyph');
+    } else if (this.stereoMode === StereoMode.TOP_BOTTOM) {
+      console.log('Rendering: Top-Bottom Split Screen');
+      console.log('Viewport: Top half = left eye, Bottom half = right eye');
+    }
+
     console.groupEnd();
+  }
+
+  // Keep old name for compatibility
+  debugAnaglyph(): void {
+    this.debugStereo();
   }
 
   /**
@@ -527,14 +563,20 @@ export class SceneManager {
   }
 
   /**
-   * Enable/Disable Anaglyph Stereo
+   * Set 3D Stereo Mode
    */
-  setAnaglyphEnabled(enabled: boolean): void {
-    this.anaglyphEnabled = enabled;
-    console.log('🕶️ Anaglyph Stereo:', enabled ? 'ON' : 'OFF');
-    if (enabled && this.stereoCamera) {
-      console.log('🕶️ Eye separation:', this.stereoCamera.eyeSep, 'meters');
-      console.log('🕶️ Manual Red-Blue Anaglyph rendering active');
+  setStereoMode(mode: StereoMode): void {
+    this.stereoMode = mode;
+    console.log('🕶️ Stereo Mode:', mode);
+
+    if (mode !== StereoMode.OFF && this.stereoCamera) {
+      console.log('👁️ Eye separation:', this.stereoCamera.eyeSep, 'meters');
+
+      if (mode === StereoMode.ANAGLYPH) {
+        console.log('🎨 Red-Blue Anaglyph rendering active');
+      } else if (mode === StereoMode.TOP_BOTTOM) {
+        console.log('📺 Top-Bottom split-screen rendering active');
+      }
     }
   }
 

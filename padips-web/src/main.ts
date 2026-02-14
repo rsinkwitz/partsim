@@ -6,7 +6,7 @@
 import { BallSet } from './core/BallSet';
 import { GlobalParams } from './core/GlobalParams';
 import { Parallelogram } from './core/Parallelogram';
-import { CBR, DrawMode } from './core/Constants';
+import { CBR, DrawMode, StereoMode } from './core/Constants';
 import { PhysicsEngine } from './simulation/PhysicsEngine';
 import { SceneManager } from './rendering/SceneManager';
 import { generateBalls, DEFAULT_BALL_PARAMS } from './utils/BallGenerator';
@@ -96,10 +96,16 @@ class PaDIPSApp {
       console.log('🎨 Draw mode changed to:', drawModeSelect.value);
     });
 
-    const anaglyphCheckbox = document.getElementById('anaglyphStereo') as HTMLInputElement;
-    anaglyphCheckbox.addEventListener('change', () => {
-      this.sceneManager.setAnaglyphEnabled(anaglyphCheckbox.checked);
-      console.log('🕶️ Anaglyph stereo:', anaglyphCheckbox.checked ? 'ON' : 'OFF');
+    // Stereo mode radio buttons
+    const stereoModeRadios = document.querySelectorAll<HTMLInputElement>('input[name="stereoMode"]');
+    stereoModeRadios.forEach(radio => {
+      radio.addEventListener('change', () => {
+        if (radio.checked) {
+          const mode = radio.value as StereoMode;
+          this.sceneManager.setStereoMode(mode);
+          console.log('🕶️ Stereo mode changed to:', mode);
+        }
+      });
     });
 
     // Eye separation for stereo (in cm, converted to meters)
