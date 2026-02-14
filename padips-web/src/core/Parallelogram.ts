@@ -46,10 +46,10 @@ export class Parallelogram {
   communicate(ball: Ball): { collided: boolean } {
     const diff = ball.position.clone().sub(this.v0);
     const linDep = this.normal.clone().multiplyScalar(diff.dot(this.normal));
-    const ortho = diff.clone().sub(linDep);
+    // const ortho = diff.clone().sub(linDep); // Not used
 
-    const oldDiff = ball.oldPosition.clone().sub(this.v0);
-    const oldLinDep = this.normal.clone().multiplyScalar(oldDiff.dot(this.normal));
+    // const oldDiff = ball.oldPosition.clone().sub(this.v0); // Not used
+    // const oldLinDep = this.normal.clone().multiplyScalar(oldDiff.dot(this.normal)); // Not used
 
     const dist = linDep.length() - ball.radius; // Distance to surface
     const sign = linDep.dot(ball.velocity); // < 0: intrusion

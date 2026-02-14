@@ -100,7 +100,7 @@ export class Ball {
    */
   communicate(other: Ball): { collided: boolean } {
     const diff = other.position.clone().sub(this.position);
-    const oldDiff = other.oldPosition.clone().sub(this.oldPosition);
+    // const oldDiff = other.oldPosition.clone().sub(this.oldPosition); // Not used in current implementation
 
     const dist = diff.length() - this.radius - other.radius;
     const sign = other.velocity.clone().sub(this.velocity).dot(diff); // < 0: converging

@@ -3,7 +3,6 @@
  * Port from model.cpp calculate()
  */
 
-import { Ball } from '../core/Ball';
 import { BallSet } from '../core/BallSet';
 import { Parallelogram } from '../core/Parallelogram';
 import { GlobalParams } from '../core/GlobalParams';

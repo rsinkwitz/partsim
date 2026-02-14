@@ -29,7 +29,6 @@ export class SceneManager {
   private drawMode: DrawMode = DrawMode.LIGHTED;
   private sphereSegments: number = 16;
   private stereoMode: StereoMode = StereoMode.OFF;
-  private cubeDepth: number = 0; // Kamera-Distanz-Offset für 3D-Stereo-Effekt
   private initialCameraDistance: number = 0; // Initiale Distanz von Kamera zu Target
 
   constructor(canvas: HTMLCanvasElement) {
@@ -601,7 +600,6 @@ export class SceneManager {
    * Works correctly with OrbitControls rotation!
    */
   setCubeDepth(depth: number): void {
-    this.cubeDepth = depth;
 
     // Berechne neue Distanz basierend auf depth
     // Negative depth = näher (weniger Distanz), Positive depth = weiter (mehr Distanz)

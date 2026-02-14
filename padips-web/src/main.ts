@@ -284,7 +284,7 @@ class PaDIPSApp {
    */
   private animate = (): void => {
     const currentTime = performance.now();
-    const deltaTime = (currentTime - this.lastTime) / 1000; // Convert to seconds
+    // const deltaTime = (currentTime - this.lastTime) / 1000; // Not used currently
     this.lastTime = currentTime;
 
     // Update physics NUR wenn Simulation läuft
