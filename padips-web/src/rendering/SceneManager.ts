@@ -37,8 +37,9 @@ export class SceneManager {
       0.1, // near
       100 // far
     );
-    // Position camera: X=front-right, Y=back-right, Z=up
-    this.camera.position.set(3, 3, 3);
+    // Position camera for frontal view: looking from front (negative Y direction)
+    // so that front/back faces are parallel to screen
+    this.camera.position.set(0, -5, 0.5); // Leicht erhöht (Z=0.5) für besseren Blickwinkel
     this.camera.up.set(0, 0, 1); // Z-axis points up (like IRIX)
     this.camera.lookAt(0, 0, 0);
 
@@ -70,19 +71,24 @@ export class SceneManager {
    * Setup lighting (port from light.cpp)
    */
   private setupLighting(): void {
-    // Ambient light
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+    // Ambient light - leicht erhöht für bessere Sichtbarkeit
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
     this.scene.add(ambientLight);
 
-    // Directional light 1 (from above in Z-Up system)
-    const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.6);
-    dirLight1.position.set(5, 5, 10); // Above and to the side
+    // Hauptlicht von oben/vorne (für Glossy-Reflexionen)
+    const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight1.position.set(2, -3, 8); // Von vorne und oben
     this.scene.add(dirLight1);
 
-    // Directional light 2 (from below for fill)
-    const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.3);
-    dirLight2.position.set(-5, -5, -5);
+    // Fülllicht von der Seite
+    const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
+    dirLight2.position.set(-5, -5, 3);
     this.scene.add(dirLight2);
+
+    // Rimlight von hinten für schöne Kanten
+    const dirLight3 = new THREE.DirectionalLight(0xffffff, 0.3);
+    dirLight3.position.set(0, 5, 2);
+    this.scene.add(dirLight3);
   }
 
   /**
@@ -135,9 +141,12 @@ export class SceneManager {
           this.sphereSegments,
           this.sphereSegments
         );
-        material = new THREE.MeshPhongMaterial({
+        material = new THREE.MeshStandardMaterial({
           color: ball.color,
-          shininess: 30,
+          metalness: 0.3,    // Leicht metallisch für Glanz
+          roughness: 0.2,    // Niedrige Rauheit = glossy/glänzend
+          emissive: ball.color,
+          emissiveIntensity: 0.05, // Leichtes Eigenleuchten
         });
         mesh = new THREE.Mesh(lightedGeometry, material);
         mesh.position.copy(ball.position);
@@ -195,10 +204,8 @@ export class SceneManager {
       this.wallGroup.add(mesh);
     }
 
-    // Rotate cube:
-    // - 10° clockwise around Z-axis (rotate in viewing direction)
-    // - No X-rotation to keep vertical edges vertical
-    this.wallGroup.rotation.z = THREE.MathUtils.degToRad(-10); // negative = clockwise
+    // No rotation - cube faces aligned with axes
+    // Front/back faces parallel to screen (XZ-plane)
     this.scene.add(this.wallGroup);
 
     // Add balls
