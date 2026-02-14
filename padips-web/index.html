@@ -41,6 +41,19 @@
         min-width: 280px;
         max-height: calc(100vh - 40px);
         overflow-y: auto;
+        transition: max-height 0.3s ease;
+      }
+
+      /* Top-Bottom Stereo Mode: Beschränke UI auf obere Hälfte */
+      body.stereo-topbottom #controls {
+        max-height: calc(50vh - 40px);
+      }
+
+      body.stereo-topbottom .info {
+        top: 20px;
+        bottom: auto;
+        left: auto;
+        right: 20px;
       }
 
       h1 {

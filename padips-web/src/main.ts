@@ -104,6 +104,14 @@ class PaDIPSApp {
           const mode = radio.value as StereoMode;
           this.sceneManager.setStereoMode(mode);
           console.log('🕶️ Stereo mode changed to:', mode);
+
+          // Update UI layout for Top-Bottom mode
+          if (mode === 'topbottom') {
+            document.body.classList.add('stereo-topbottom');
+            console.log('📺 UI restricted to top half for Top-Bottom stereo');
+          } else {
+            document.body.classList.remove('stereo-topbottom');
+          }
         }
       });
     });
