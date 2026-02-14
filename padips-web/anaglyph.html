@@ -26,7 +26,7 @@
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 
-    let scene, camera, renderer, effect, controls, mesh;
+    let scene, camera, renderer, effect, controls, meshes = [];
     let stereo;
 
     const params = {
@@ -71,16 +71,46 @@
       scene.add(light);
       scene.add(new THREE.AmbientLight(0x404040));
 
-      const geometry = new THREE.TorusKnotGeometry(1, 0.3, 128, 32);
-      const material = new THREE.MeshStandardMaterial({
-        color: 0xff5533,
-        wireframe: params.wireframe
-      });
+      // 5 verschiedene Objekte mit verschiedenen Farben erstellen
+      const objects = [
+        {
+          geometry: new THREE.BoxGeometry(1.5, 1.5, 1.5),
+          color: 0x0000ff, // Blau
+          position: { x: -6, y: 0, z: 0 }
+        },
+        {
+          geometry: new THREE.SphereGeometry(0.8, 32, 32),
+          color: 0xff0000, // Rot
+          position: { x: -3, y: 0, z: 0 }
+        },
+        {
+          geometry: new THREE.TorusKnotGeometry(0.7, 0.25, 128, 32),
+          color: 0x00ff00, // Grün
+          position: { x: 0, y: 0, z: 0 }
+        },
+        {
+          geometry: new THREE.CylinderGeometry(0.6, 0.6, 1.5, 32),
+          color: 0xffff00, // Gelb
+          position: { x: 3, y: 0, z: 0 }
+        },
+        {
+          geometry: new THREE.TorusGeometry(0.8, 0.3, 16, 100),
+          color: 0xffffff, // Weiß
+          position: { x: 6, y: 0, z: 0 }
+        }
+      ];
 
-      mesh = new THREE.Mesh(geometry, material);
-      scene.add(mesh);
+      objects.forEach(obj => {
+        const material = new THREE.MeshStandardMaterial({
+          color: obj.color,
+          wireframe: params.wireframe
+        });
+        const mesh = new THREE.Mesh(obj.geometry, material);
+        mesh.position.set(obj.position.x, obj.position.y, obj.position.z + params.zPosition);
         mesh.scale.setScalar(params.scale);
-        mesh.position.z = params.zPosition;
+        scene.add(mesh);
+        meshes.push(mesh);
+      });
       scene.add(new THREE.GridHelper(20, 20));
 
       const gui = new GUI();
@@ -92,18 +122,22 @@
 
       gui.add(params, 'wireframe')
          .name('Wireframe')
-         .onChange(v => mesh.material.wireframe = v);
+         .onChange(v => {
+           meshes.forEach(mesh => mesh.material.wireframe = v);
+         });
 
         gui.add(params, 'scale', 0.2, 3, 0.01)
            .name('Object Scale')
            .onChange(v => {
-             mesh.scale.setScalar(v);
+             meshes.forEach(mesh => mesh.scale.setScalar(v));
            });
 
         gui.add(params, 'zPosition', -5, 5, 0.01)
            .name('Object Z Position')
            .onChange(v => {
-             mesh.position.z = v;
+             meshes.forEach(mesh => {
+               mesh.position.z = v;
+             });
            });
 
       window.addEventListener('resize', onResize);
@@ -125,8 +159,10 @@
     function animate() {
       requestAnimationFrame(animate);
 
-      mesh.rotation.y += 0.005;
-      mesh.rotation.x += 0.003;
+      meshes.forEach(mesh => {
+        mesh.rotation.y += 0.005;
+        mesh.rotation.x += 0.003;
+      });
 
       controls.update();
 

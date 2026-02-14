@@ -78,7 +78,7 @@ export class SceneManager {
     this.renderTargetL = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, params);
     this.renderTargetR = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, params);
 
-    // Anaglyph Shader Material (Rot-Blau)
+    // Anaglyph Shader Material (Rot-Blau mit Dubois-ähnlichen Matrizen)
     this.anaglyphMaterial = new THREE.ShaderMaterial({
       uniforms: {
         mapLeft: { value: this.renderTargetL.texture },
@@ -100,17 +100,28 @@ export class SceneManager {
           vec4 colorL = texture2D(mapLeft, vUv);
           vec4 colorR = texture2D(mapRight, vUv);
 
-          // Rot-Blau Anaglyph mit Luminanz und Helligkeitsverstärkung
-          float lumL = 0.299 * colorL.r + 0.587 * colorL.g + 0.114 * colorL.b;
-          float lumR = 0.299 * colorR.r + 0.587 * colorR.g + 0.114 * colorR.b;
+          // Dubois-style Matrizen für Rot-Blau Anaglyph
+          // Optimiert für gute Farbseparation und 3D-Effekt
 
-          // Verstärke Helligkeit (Gain) und füge Grün-Anteil für bessere Sichtbarkeit
+          // Links (Rot-Auge): Optimierte Matrix für Rot-Kanal
+          vec3 leftColor = vec3(
+            0.437 * colorL.r + 0.449 * colorL.g + 0.164 * colorL.b,
+            -0.062 * colorL.r - 0.062 * colorL.g - 0.024 * colorL.b,
+            -0.048 * colorL.r - 0.050 * colorL.g - 0.017 * colorL.b
+          );
+
+          // Rechts (Blau-Auge): Optimierte Matrix für Blau-Kanal
+          vec3 rightColor = vec3(
+            -0.011 * colorR.r - 0.032 * colorR.g - 0.007 * colorR.b,
+            0.377 * colorR.r + 0.761 * colorR.g + 0.009 * colorR.b,
+            -0.026 * colorR.r - 0.093 * colorR.g + 1.234 * colorR.b
+          );
+
+          // Kombiniere beide mit Helligkeitsverstärkung
           float gain = 1.5;  // 50% heller
-          float red = lumL * gain;
-          float green = (lumL + lumR) * 0.3 * gain;  // Grün-Anteil für Helligkeit
-          float blue = lumR * gain;
+          vec3 color = clamp((leftColor + rightColor) * gain, 0.0, 1.0);
 
-          gl_FragColor = vec4(red, green, blue, 1.0);
+          gl_FragColor = vec4(color, max(colorL.a, colorR.a));
         }
       `
     });
