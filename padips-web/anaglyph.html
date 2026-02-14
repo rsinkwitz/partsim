@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Three.js Anaglyph 3D + Wireframe</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    #ui {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0,0,0,0.6);
+      color: white;
+      padding: 8px 12px;
+      font-family: sans-serif;
+      border-radius: 6px;
+      cursor: pointer;
+      user-select: none;
+    }
+  </style>
+
+  <!-- Import map -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+
+<div id="ui">Wireframe: OFF (Press W)</div>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { AnaglyphEffect } from 'three/addons/effects/AnaglyphEffect.js';
+
+  let scene, camera, renderer, effect, mesh;
+  let wireframeEnabled = false;
+
+  const ui = document.getElementById('ui');
+
+  init();
+  animate();
+
+  function init() {
+
+    scene = new THREE.Scene();
+
+    camera = new THREE.PerspectiveCamera(
+      70,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      100
+    );
+    camera.position.z = 5;
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    effect = new AnaglyphEffect(renderer);
+    effect.setSize(window.innerWidth, window.innerHeight);
+
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(5, 5, 5);
+    scene.add(light);
+
+    const geometry = new THREE.TorusKnotGeometry(1, 0.3, 128, 32);
+    const material = new THREE.MeshStandardMaterial({
+      color: 0xff5533,
+      wireframe: false
+    });
+
+    mesh = new THREE.Mesh(geometry, material);
+    scene.add(mesh);
+
+    window.addEventListener('resize', onWindowResize);
+    window.addEventListener('keydown', onKeyDown);
+    ui.addEventListener('click', toggleWireframe);
+  }
+
+  function toggleWireframe() {
+    wireframeEnabled = !wireframeEnabled;
+    mesh.material.wireframe = wireframeEnabled;
+    ui.textContent = `Wireframe: ${wireframeEnabled ? 'ON' : 'OFF'} (Press W)`;
+  }
+
+  function onKeyDown(event) {
+    if (event.key.toLowerCase() === 'w') {
+      toggleWireframe();
+    }
+  }
+
+  function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    effect.setSize(window.innerWidth, window.innerHeight);
+  }
+
+  function animate() {
+    requestAnimationFrame(animate);
+    mesh.rotation.y += 0.01;
+    mesh.rotation.x += 0.005;
+    effect.render(scene, camera);
+  }
+</script>
+
+</body>
+</html>

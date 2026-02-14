@@ -86,8 +86,7 @@ class PaDIPSApp {
     // Rendering controls
     const drawModeSelect = document.getElementById('drawMode') as HTMLSelectElement;
     drawModeSelect.addEventListener('change', () => {
-      this.sceneManager.setDrawMode(drawModeSelect.value as DrawMode);
-      this.reset(); // Recreate meshes with new mode
+      this.updateDrawMode(drawModeSelect.value as DrawMode);
       console.log('🎨 Draw mode changed to:', drawModeSelect.value);
     });
 
@@ -97,10 +96,16 @@ class PaDIPSApp {
       console.log('🕶️ Anaglyph stereo:', anaglyphCheckbox.checked ? 'ON' : 'OFF');
     });
 
+    // Eye separation for stereo (in cm, converted to meters)
+    this.setupRangeControl('eyeSeparation', (value) => {
+      this.sceneManager.setEyeSeparation(value / 100); // Convert cm to meters
+      console.log('👁️ Eye separation:', (value / 100).toFixed(3), 'm');
+    }, 100);
+
     // Ball controls
     this.setupRangeControl('ballCount', (value) => {
       this.ballParams.count = value;
-      console.log('🎱 Ball count will be:', value, '(reset to apply)');
+      console.log('🎱 Ball count changed to:', value, '(click New to apply)');
     });
 
     this.setupRangeControl('minRadius', (value) => {
@@ -128,13 +133,15 @@ class PaDIPSApp {
     gravityPresetSelect.addEventListener('change', () => {
       const magnitude = parseFloat((document.getElementById('gravityMagnitude') as HTMLInputElement).value);
       this.global.setGravityPreset(gravityPresetSelect.value, magnitude);
-      console.log('🌍 Gravity preset changed to:', gravityPresetSelect.value);
+      console.log('🌍 Gravity preset changed to:', gravityPresetSelect.value, 'magnitude:', magnitude, 'm/s²');
+      console.log('🌍 New acceleration:', this.global.acceleration);
     });
 
     this.setupRangeControl('gravityMagnitude', (value) => {
       const preset = (document.getElementById('gravityPreset') as HTMLSelectElement).value;
       this.global.setGravityPreset(preset, value);
-      console.log('🌍 Gravity magnitude:', value, 'm/s²');
+      console.log('🌍 Gravity magnitude changed to:', value, 'm/s² (preset:', preset + ')');
+      console.log('🌍 New acceleration:', this.global.acceleration);
     });
 
     this.setupRangeControl('globalElasticity', (value) => {
@@ -245,6 +252,21 @@ class PaDIPSApp {
   }
 
   /**
+   * Update draw mode without resetting simulation
+   */
+  updateDrawMode(mode: DrawMode): void {
+    console.log('🎨 Updating draw mode to:', mode);
+
+    // Update draw mode in scene manager
+    this.sceneManager.setDrawMode(mode);
+
+    // Recreate ball meshes with new mode (without resetting physics)
+    this.sceneManager.recreateBallMeshes(this.ballSet);
+
+    console.log('✅ Draw mode updated, simulation continues');
+  }
+
+  /**
    * Main animation loop
    */
   private animate = (): void => {
@@ -309,6 +331,13 @@ class PaDIPSApp {
   debugScene(): void {
     this.sceneManager.dumpSceneState();
   }
+
+  /**
+   * Debug: Anaglyph status
+   */
+  debugAnaglyph(): void {
+    this.sceneManager.debugAnaglyph();
+  }
 }
 
 // Initialize app
@@ -323,7 +352,9 @@ window.addEventListener('beforeunload', () => {
 // Export for debugging
 (window as any).padips = app;
 (window as any).debugScene = () => app.debugScene();
+(window as any).debugAnaglyph = () => app.debugAnaglyph();
 
 console.log('💡 Debug-Befehle verfügbar:');
 console.log('  window.padips - Zugriff auf App');
 console.log('  debugScene() - Scene-Status ausgeben');
+console.log('  debugAnaglyph() - Anaglyph-Status prüfen');

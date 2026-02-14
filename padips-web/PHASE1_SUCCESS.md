@@ -12,10 +12,15 @@
 ### Implementierte Features:
 ✅ Vollständige Physik-Simulation (Portierung von model.cpp)
 ✅ Ball-Ball & Ball-Wand Kollisionen
-✅ Three.js 3D-Rendering mit Beleuchtung
+✅ Three.js 3D-Rendering mit Beleuchtung (Glossy Balls!)
 ✅ OrbitControls für Maus-Interaktion
 ✅ Echtzeit-Statistiken
-✅ Start/Stop/Reset UI
+✅ Start/Stop/New UI
+✅ Vollständige UI-Controls (Physik, Rendering, Ball-Parameter)
+✅ Draw-Mode Live-Switching (Lighted/Wireframe/Points) ohne Reset
+✅ Anaglyph 3D-Stereo Support
+✅ Perfekte Achsenausrichtung (Front/Back parallel zu Screen)
+✅ Glossy Material mit PBR (Physically Based Rendering)
 
 ## 📊 Code-Statistik
 
@@ -65,6 +70,8 @@ oder direkt mehr Features testen (50+ Balls, Draw-Modes, etc.).
 ## 🚀 Status
 
 **Phase 1: ✅ COMPLETE**
+
+**Regression-Fix (2026-02-14):** ✅ Eye-Separation korrigiert, Debug-Logging verbessert
 
 Deployment-ready für:
 - ✅ Lokale Entwicklung

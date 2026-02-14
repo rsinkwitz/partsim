@@ -56,9 +56,43 @@ export class SceneManager {
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
 
-    // Anaglyph Effect
+    // Anaglyph Effect - konfiguriert für Rot-Blau Brille (links rot, rechts blau)
     this.anaglyphEffect = new AnaglyphEffect(this.renderer);
     this.anaglyphEffect.setSize(window.innerWidth, window.innerHeight);
+
+    // Setze initiale Eye-Separation (80mm = User's Augenabstand)
+    // AnaglyphEffect verwendet intern eine StereoCamera
+    const stereoCamera = (this.anaglyphEffect as any)._stereo;
+    if (stereoCamera) {
+      stereoCamera.eyeSep = 0.080;
+      console.log('🕶️ Initial Eye-Separation set to:', stereoCamera.eyeSep, 'meters');
+    }
+
+    // Passe Farbmatrizen für Rot-Blau an
+    // "True Color" Anaglyph Methode für Rot-Blau
+    // Links behält volle Farbinfo, Rechts nur Blau-Komponente
+
+    // Matrix3 Format: Output = Matrix × Input
+    // Zeile 1 = R_out, Zeile 2 = G_out, Zeile 3 = B_out
+    // Spalte 1 = R_in, Spalte 2 = G_in, Spalte 3 = B_in
+
+    // Links: Volle Farbe aber nur Rot-Ausgabe (für rotes Brillenglas)
+    this.anaglyphEffect.colorMatrixLeft.fromArray([
+      1.0,  0.0,  0.0,   // R_out = Rot durchlassen
+      0.0,  1.0,  0.0,   // G_out = Grün durchlassen
+      0.0,  0.0,  1.0    // B_out = Blau durchlassen
+    ]);
+
+    // Rechts: Verschiebe alles nach Blau (für blaues Brillenglas)
+    this.anaglyphEffect.colorMatrixRight.fromArray([
+      0.0,  0.0,  0.0,   // R_out = kein Rot
+      0.0,  0.0,  0.0,   // G_out = kein Grün
+      0.299, 0.587, 0.114 // B_out = Luminanz (alle Farben sichtbar als Blau)
+    ]);
+
+    console.log('🕶️ Anaglyph Effect initialized - Eye Sep:', (this.anaglyphEffect as any).eyeSep);
+    console.log('🕶️ Color Matrix Left (Full Color):', this.anaglyphEffect.colorMatrixLeft.elements);
+    console.log('🕶️ Color Matrix Right (Luminanz → Blue):', this.anaglyphEffect.colorMatrixRight.elements);
 
     // Lighting
     this.setupLighting();
@@ -262,6 +296,37 @@ export class SceneManager {
   }
 
   /**
+   * Recreate ball meshes with new draw mode (without resetting physics)
+   */
+  recreateBallMeshes(ballSet: BallSet): void {
+    console.log('🔄 Recreating ball meshes with new draw mode:', this.drawMode);
+
+    // Remove old ball meshes
+    for (const mesh of this.ballMeshes.values()) {
+      this.scene.remove(mesh);
+      mesh.geometry.dispose();
+      if (Array.isArray(mesh.material)) {
+        mesh.material.forEach(mat => mat.dispose());
+      } else {
+        mesh.material.dispose();
+      }
+    }
+    this.ballMeshes.clear();
+
+    // Create new ball meshes with current positions
+    for (let i = 0; i < ballSet.num; i++) {
+      const ball = ballSet.get(i);
+      if (ball) {
+        const mesh = this.createBallMesh(ball);
+        this.ballMeshes.set(i, mesh);
+        this.scene.add(mesh);
+      }
+    }
+
+    console.log('✅ Recreated', this.ballMeshes.size, 'ball meshes');
+  }
+
+  /**
    * Clear scene
    */
   private clearScene(): void {
@@ -314,6 +379,28 @@ export class SceneManager {
   }
 
   /**
+   * Debug: Test anaglyph effect
+   */
+  debugAnaglyph(): void {
+    console.group('🔍 Anaglyph Debug');
+    console.log('Anaglyph Enabled:', this.anaglyphEnabled);
+    console.log('Anaglyph Effect exists:', !!this.anaglyphEffect);
+    if (this.anaglyphEffect) {
+      const stereoCamera = (this.anaglyphEffect as any)._stereo;
+      console.log('StereoCamera exists:', !!stereoCamera);
+      if (stereoCamera) {
+        console.log('Eye Separation (StereoCamera):', stereoCamera.eyeSep, 'meters');
+        console.log('Aspect:', stereoCamera.aspect);
+      }
+      console.log('Color Matrix Left (Full Color):', this.anaglyphEffect.colorMatrixLeft.elements);
+      console.log('Color Matrix Right (Luminanz → Blue):', this.anaglyphEffect.colorMatrixRight.elements);
+      console.log('Expected Left: [1, 0, 0, 0, 1, 0, 0, 0, 1] - Identity (Full Color)');
+      console.log('Expected Right: [0, 0, 0, 0, 0, 0, 0.299, 0.587, 0.114] - Luminanz → Blue');
+    }
+    console.groupEnd();
+  }
+
+  /**
    * Handle window resize
    */
   private onWindowResize(): void {
@@ -339,6 +426,31 @@ export class SceneManager {
   setAnaglyphEnabled(enabled: boolean): void {
     this.anaglyphEnabled = enabled;
     console.log('🕶️ Anaglyph Stereo:', enabled ? 'ON' : 'OFF');
+    if (enabled && this.anaglyphEffect) {
+      console.log('🕶️ Eye separation:', (this.anaglyphEffect as any).eyeSep, 'meters');
+      console.log('🕶️ Rendering mit Red-Blue Anaglyph');
+    }
+  }
+
+  /**
+   * Set stereo eye separation (Augenabstand) for optimal 3D effect
+   * Default is 0.064 (64mm - average human eye distance)
+   */
+  setEyeSeparation(separation: number): void {
+    if (this.anaglyphEffect) {
+      // AnaglyphEffect verwendet intern eine StereoCamera (_stereo)
+      // Wir müssen auf die StereoCamera zugreifen um eyeSep zu setzen
+      const stereoCamera = (this.anaglyphEffect as any)._stereo;
+      if (stereoCamera) {
+        stereoCamera.eyeSep = separation;
+        console.log('👁️ Eye separation set to:', separation.toFixed(3), 'meters');
+        console.log('👁️ StereoCamera eyeSep:', stereoCamera.eyeSep);
+      } else {
+        console.warn('⚠️ StereoCamera not found in AnaglyphEffect');
+      }
+    } else {
+      console.warn('⚠️ Cannot set eye separation - anaglyphEffect not initialized');
+    }
   }
 
   /**
