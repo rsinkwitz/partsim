@@ -54,7 +54,13 @@ class PaDIPSApp {
 
     console.log('🎱 PaDIPS initialized with', this.ballSet.num, 'balls');
 
-    // Auto-start simulation
+    // Starte Animation-Loop (läuft immer für Rendering & Kamera-Interaktion)
+    this.lastTime = performance.now();
+    this.lastFpsUpdate = this.lastTime;
+    this.animationId = requestAnimationFrame(this.animate);
+    console.log('🎬 Animation loop started (rendering active)');
+
+    // Auto-start Physik-Simulation
     this.start();
   }
 
@@ -171,7 +177,7 @@ class PaDIPSApp {
   }
 
   /**
-   * Start simulation
+   * Start simulation (Animation-Loop läuft bereits immer)
    */
   start(): void {
     if (this.isRunning) return;
@@ -186,29 +192,24 @@ class PaDIPSApp {
     startBtn.disabled = true;
     stopBtn.disabled = false;
 
-    console.log('▶ Simulation started');
-    this.animate();
+    console.log('▶ Simulation started (physics enabled)');
   }
 
   /**
-   * Stop simulation
+   * Stop simulation (Rendering läuft weiter für Kamera-Interaktion)
    */
   stop(): void {
     if (!this.isRunning) return;
 
     this.isRunning = false;
-
-    if (this.animationId !== null) {
-      cancelAnimationFrame(this.animationId);
-      this.animationId = null;
-    }
+    // Animation-Loop NICHT stoppen - läuft weiter für Rendering!
 
     const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
     const stopBtn = document.getElementById('stopBtn') as HTMLButtonElement;
     startBtn.disabled = false;
     stopBtn.disabled = true;
 
-    console.log('⏸ Simulation stopped');
+    console.log('⏸ Simulation stopped (rendering continues for camera interaction)');
   }
 
   /**
@@ -267,20 +268,23 @@ class PaDIPSApp {
   }
 
   /**
-   * Main animation loop
+   * Main animation loop - läuft IMMER (auch im Stopp-Modus für Kamera-Interaktion)
    */
   private animate = (): void => {
-    if (!this.isRunning) return;
-
     const currentTime = performance.now();
     const deltaTime = (currentTime - this.lastTime) / 1000; // Convert to seconds
     this.lastTime = currentTime;
 
-    // Update physics
-    this.physicsEngine.calculate();
+    // Update physics NUR wenn Simulation läuft
+    if (this.isRunning) {
+      this.physicsEngine.calculate();
 
-    // Update rendering
-    this.sceneManager.updateBalls(this.ballSet);
+      // Update ball positions in rendering
+      this.sceneManager.updateBalls(this.ballSet);
+    }
+
+    // Rendering läuft IMMER (auch im Stopp-Modus)
+    // So kann man im Stopp-Modus drehen, zoomen und visuelle Änderungen sehen
     this.sceneManager.render();
 
     // Update FPS
@@ -294,7 +298,7 @@ class PaDIPSApp {
     // Update stats display
     this.updateStats();
 
-    // Continue loop
+    // Continue loop - IMMER
     this.animationId = requestAnimationFrame(this.animate);
   };
 
@@ -321,7 +325,14 @@ class PaDIPSApp {
    * Dispose resources
    */
   dispose(): void {
-    this.stop();
+    this.isRunning = false;
+
+    // Stoppe Animation-Loop
+    if (this.animationId !== null) {
+      cancelAnimationFrame(this.animationId);
+      this.animationId = null;
+    }
+
     this.sceneManager.dispose();
   }
 
