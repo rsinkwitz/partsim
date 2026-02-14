@@ -216,59 +216,6 @@
           <button id="resetBtn" class="reset">✨ New</button>
         </div>
 
-        <h2>⚙️ Simulation</h2>
-
-        <div class="control-group">
-          <label>
-            <span>Calc Factor</span>
-            <span class="value" id="calcFactorValue">10</span>
-          </label>
-          <input type="range" id="calcFactor" min="1" max="50" value="10" step="1">
-        </div>
-
-        <div class="checkbox-group">
-          <label>
-            <input type="checkbox" id="collisionsEnabled" checked>
-            <span>Collisions Enabled</span>
-          </label>
-        </div>
-
-        <h2>🎨 Rendering</h2>
-
-        <div class="control-group">
-          <label>
-            <span>Draw Mode</span>
-          </label>
-          <select id="drawMode">
-            <option value="LIGHTED">Lighted</option>
-            <option value="WIREFRAME">Wireframe</option>
-            <option value="POINTS">Points</option>
-          </select>
-        </div>
-
-        <div class="checkbox-group">
-          <label>
-            <input type="checkbox" id="anaglyphStereo">
-            <span>🕶️ Anaglyph Stereo (Rot-Blau)</span>
-          </label>
-        </div>
-
-        <div class="control-group">
-          <label>
-            <span>Eye Separation (Augenabstand)</span>
-            <span class="value" id="eyeSeparationValue">0.080</span>
-          </label>
-          <input type="range" id="eyeSeparation" min="2" max="20" value="8.0" step="0.2">
-        </div>
-
-        <div class="control-group">
-          <label>
-            <span>Cube Depth (3D Position)</span>
-            <span class="value" id="cubeDepthValue">0.0</span>
-          </label>
-          <input type="range" id="cubeDepth" min="-20" max="20" value="0" step="1">
-        </div>
-
         <h2>🎱 Balls</h2>
 
         <div class="control-group">
@@ -344,7 +291,60 @@
           <input type="range" id="globalElasticity" min="0" max="100" value="90" step="5">
         </div>
 
-        <div id="stats">
+          <h2>⚙️ Simulation</h2>
+
+          <div class="control-group">
+              <label>
+                  <span>Calc Factor</span>
+                  <span class="value" id="calcFactorValue">10</span>
+              </label>
+              <input type="range" id="calcFactor" min="1" max="50" value="10" step="1">
+          </div>
+
+          <div class="checkbox-group">
+              <label>
+                  <input type="checkbox" id="collisionsEnabled" checked>
+                  <span>Collisions Enabled</span>
+              </label>
+          </div>
+
+          <h2>🎨 Rendering</h2>
+
+          <div class="control-group">
+              <label>
+                  <span>Draw Mode</span>
+              </label>
+              <select id="drawMode">
+                  <option value="LIGHTED">Lighted</option>
+                  <option value="WIREFRAME">Wireframe</option>
+                  <option value="POINTS">Points</option>
+              </select>
+          </div>
+
+          <div class="checkbox-group">
+              <label>
+                  <input type="checkbox" id="anaglyphStereo">
+                  <span>🕶️ Anaglyph Stereo (Rot-Blau)</span>
+              </label>
+          </div>
+
+          <div class="control-group">
+              <label>
+                  <span>Eye Separation (Augenabstand)</span>
+                  <span class="value" id="eyeSeparationValue">0.080</span>
+              </label>
+              <input type="range" id="eyeSeparation" min="2" max="20" value="8.0" step="0.2">
+          </div>
+
+          <div class="control-group">
+              <label>
+                  <span>Cube Depth (3D Position)</span>
+                  <span class="value" id="cubeDepthValue">0.0</span>
+              </label>
+              <input type="range" id="cubeDepth" min="-20" max="20" value="0" step="1">
+          </div>
+
+          <div id="stats">
           <div><strong>📊 Stats</strong></div>
           <div>FPS: <span id="fps">0</span></div>
           <div>Balls: <span id="ballCountStat">0</span></div>
