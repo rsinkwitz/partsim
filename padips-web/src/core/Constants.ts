@@ -7,7 +7,7 @@ export const ACC_G = 9.81; // Earth acceleration [m/s²]
 export const MIN_COLL_VELOCITY = 0.0001; // Minimum collision velocity
 
 // Cube/World bounds
-export const CBR = 1.2; // Cube radius (1.2 meter = 20% größer)
+export const CBR = 1.518; // Cube radius (1.518 meter = 15% größer als vorher)
 export const DCBR = 2 * CBR; // Cube diameter
 
 // Ball set limits

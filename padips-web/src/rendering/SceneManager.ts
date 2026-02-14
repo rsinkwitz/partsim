@@ -195,9 +195,10 @@ export class SceneManager {
       this.wallGroup.add(mesh);
     }
 
-    // Rotate cube: 10° around X-axis (tilt forward to lift front edge)
-    // No Z-rotation to keep vertical edges vertical
-    this.wallGroup.rotation.x = THREE.MathUtils.degToRad(10);
+    // Rotate cube:
+    // - 10° clockwise around Z-axis (rotate in viewing direction)
+    // - No X-rotation to keep vertical edges vertical
+    this.wallGroup.rotation.z = THREE.MathUtils.degToRad(-10); // negative = clockwise
     this.scene.add(this.wallGroup);
 
     // Add balls
