@@ -29,8 +29,8 @@ export class SceneManager {
   private drawMode: DrawMode = DrawMode.LIGHTED;
   private sphereSegments: number = 16;
   private anaglyphEnabled: boolean = false;
-  private cubeDepth: number = 0; // Kamera-Tiefe für 3D-Stereo-Effekt
-  private initialCameraY: number = -5; // Standard-Kameraposition auf Y-Achse
+  private cubeDepth: number = 0; // Kamera-Distanz-Offset für 3D-Stereo-Effekt
+  private initialCameraDistance: number = 0; // Initiale Distanz von Kamera zu Target
 
   constructor(canvas: HTMLCanvasElement) {
     // Scene
@@ -62,6 +62,11 @@ export class SceneManager {
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
+
+    // Speichere initiale Distanz für Cube Depth Funktion
+    // Distanz = Abstand von Kamera zu Target (Ursprung)
+    this.initialCameraDistance = this.camera.position.distanceTo(this.controls.target);
+    console.log('📏 Initial camera distance:', this.initialCameraDistance.toFixed(2));
 
     // Anaglyph Effect - MANUELL für volle Kontrolle
     // Eigene StereoCamera
@@ -537,21 +542,30 @@ export class SceneManager {
   }
 
   /**
-   * Set cube depth (camera Y-position) for 3D stereo effect
-   * Negative values = camera moves forward (cube+balls come out of screen)
-   * Positive values = camera moves backward (cube+balls go into screen)
+   * Set cube depth (camera distance) for 3D stereo effect
+   * Negative values = camera moves closer (cube+balls come out of screen)
+   * Positive values = camera moves farther (cube+balls go into screen)
+   * Works correctly with OrbitControls rotation!
    */
   setCubeDepth(depth: number): void {
     this.cubeDepth = depth;
 
-    // Move camera along Y-axis (view direction)
-    // Camera is initially at Y=-5, negative depth brings it closer (objects appear to pop out)
-    this.camera.position.y = this.initialCameraY - depth;
+    // Berechne neue Distanz basierend auf depth
+    // Negative depth = näher (weniger Distanz), Positive depth = weiter (mehr Distanz)
+    const newDistance = this.initialCameraDistance - depth;
 
-    // Update lookAt to keep looking at origin
-    this.camera.lookAt(0, 0, 0);
+    // Berechne Richtungsvektor von Target zur Kamera (normalisiert)
+    const direction = new THREE.Vector3()
+      .subVectors(this.camera.position, this.controls.target)
+      .normalize();
 
-    console.log('📦 Cube depth set to:', depth.toFixed(1), '(Camera Y:', this.camera.position.y.toFixed(1), ')');
+    // Setze neue Kamera-Position: Target + Richtung * neue Distanz
+    this.camera.position.copy(this.controls.target)
+      .add(direction.multiplyScalar(newDistance));
+
+    // OrbitControls update wird automatisch im nächsten Frame aufgerufen
+
+    console.log('📦 Cube depth set to:', depth.toFixed(1), '(Distance:', newDistance.toFixed(2), ')');
   }
 
   /**
