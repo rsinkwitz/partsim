@@ -6,6 +6,7 @@ node_modules/
 # Expo
 .expo/
 dist/
+/public/
 web-build/
 expo-env.d.ts
 
@@ -36,6 +37,13 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-# generated native folders
-/ios
-/android
+# Project-specific
+app-example
+/.idea/
+
+# Development documentation (optional - entfernen wenn Sie diese committen möchten)
+# doc/
+# *_FIX.md
+# *_ERFOLG.md
+# *_STATUS.md
+

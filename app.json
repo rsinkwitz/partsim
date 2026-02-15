@@ -3,28 +3,28 @@
     "name": "padips",
     "slug": "padips",
     "version": "1.0.0",
-    "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#b0c4de"
     },
-    "ios": {
-      "supportsTablet": true
-    },
+    "assetBundlePatterns": [
+      "assets/**/*"
+    ],
     "android": {
+      "package": "com.rsinkwitz.padips",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+        "backgroundColor": "#b0c4de"
+      }
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    }
+    "ios": {
+      "bundleIdentifier": "com.anonymous.rscubesexpo",
+      "icon": "./assets/icon.png"
+    },
+    "plugins": [
+      "expo-asset"
+    ]
   }
 }
