@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
-import { StyleSheet, Platform, ActivityIndicator, View, Text, TouchableOpacity, ScrollView } from "react-native";
+import { StyleSheet, Platform, ActivityIndicator, View, Text, TouchableOpacity, ScrollView, Switch } from "react-native";
 import { WebView } from "react-native-webview";
 import { SafeAreaView, SafeAreaProvider } from "react-native-safe-area-context";
 import * as FileSystem from "expo-file-system/legacy";
 import { Asset } from "expo-asset";
+import Slider from '@react-native-community/slider';
 
 export default function App() {
   const [webAppUri, setWebAppUri] = useState(null);
@@ -28,6 +29,14 @@ export default function App() {
 }
 
 function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setError, webViewRef }) {
+  // UI State
+  const [ballCount, setBallCount] = useState(30);
+  const [calcFactor, setCalcFactor] = useState(10);
+  const [gridEnabled, setGridEnabled] = useState(false);
+  const [gridSegments, setGridSegments] = useState(8);
+  const [showWorldGrid, setShowWorldGrid] = useState(false);
+  const [showOccupiedVoxels, setShowOccupiedVoxels] = useState(false);
+  const [showCollisionChecks, setShowCollisionChecks] = useState(false);
 
   useEffect(() => {
     loadWebApp();
@@ -163,44 +172,190 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
   // Auf Web verwenden wir einen iframe statt WebView für bessere Kompatibilität
   if (Platform.OS === "web") {
     return (
-      <View style={styles.container}>
-        {/* Control Buttons - EINE Zeile auf Web: Shapes dann Actions */}
-        <View style={styles.controlsContainer}>
-          <View style={styles.buttonRowSingle}>
-            <TouchableOpacity style={styles.button} onPress={() => sendToIframe('morph', 0)}>
-              <Text style={styles.buttonText}>3x3</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.button} onPress={() => sendToIframe('morph', 1)}>
-              <Text style={styles.buttonText}>2x2</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.button} onPress={() => sendToIframe('morph', 3)}>
-              <Text style={styles.buttonText}>Pyra</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.button} onPress={() => sendToIframe('mirror')}>
-              <Text style={styles.buttonText}>🪞 Mirror</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.button} onPress={() => sendToIframe('undo')}>
-              <Text style={styles.buttonText}>↶ Undo</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.button} onPress={() => sendToIframe('redo')}>
-              <Text style={styles.buttonText}>↷ Redo</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.button} onPress={() => sendToIframe('shuffle', 10)}>
-              <Text style={styles.buttonText}>🎲 Shuffle</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+      <View style={styles.containerWeb}>
+        {/* PaDIPS Control Panel - Links wie im Original */}
+        <ScrollView style={styles.sidebarWeb} contentContainerStyle={styles.sidebarContent}>
+          <Text style={styles.title}>🎱 PaDIPS</Text>
 
-        {/* iframe für Web */}
+          {/* Main Controls */}
+          <View style={styles.section}>
+            <View style={styles.buttonRow}>
+              <TouchableOpacity style={styles.startButton} onPress={() => sendToIframe('start')}>
+                <Text style={styles.buttonText}>▶ Start</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.stopButton} onPress={() => sendToIframe('stop')}>
+                <Text style={styles.buttonText}>⏸ Stop</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.newButton} onPress={() => sendToIframe('new')}>
+                <Text style={styles.buttonText}>✨ New</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Stats */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>📊 Stats</Text>
+            <Text style={styles.statText}>FPS: --</Text>
+            <Text style={styles.statText}>Balls: {ballCount}</Text>
+            <Text style={styles.statText}>Generation: 0</Text>
+          </View>
+
+          {/* Balls Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🎱 Balls</Text>
+            <View style={styles.sliderContainer}>
+              <Text style={styles.label}>Number of Balls: {ballCount}</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={5}
+                maximumValue={1000}
+                step={5}
+                value={ballCount}
+                onValueChange={setBallCount}
+                onSlidingComplete={(value) => {
+                  sendToIframe('setBallCount', value);
+                }}
+                minimumTrackTintColor="#4CAF50"
+                maximumTrackTintColor="#ddd"
+              />
+            </View>
+          </View>
+
+          {/* Simulation Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>⚙️ Simulation</Text>
+            <View style={styles.sliderContainer}>
+              <Text style={styles.label}>Calc Factor: {calcFactor}</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={1}
+                maximumValue={50}
+                step={1}
+                value={calcFactor}
+                onValueChange={setCalcFactor}
+                onSlidingComplete={(value) => {
+                  sendToIframe('setCalcFactor', value);
+                }}
+                minimumTrackTintColor="#FF9800"
+                maximumTrackTintColor="#ddd"
+              />
+            </View>
+          </View>
+
+          {/* Grid System */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🔲 Grid System</Text>
+            <View style={styles.toggleContainer}>
+              <Text style={styles.label}>Grid-based Collision</Text>
+              <Switch
+                value={gridEnabled}
+                onValueChange={(value) => {
+                  setGridEnabled(value);
+                  sendToIframe('setGridEnabled', value);
+                }}
+                trackColor={{ false: "#ddd", true: "#4CAF50" }}
+              />
+            </View>
+
+            {gridEnabled && (
+              <>
+                <View style={styles.sliderContainer}>
+                  <Text style={styles.label}>Grid Segments: {gridSegments}</Text>
+                  <Slider
+                    style={styles.slider}
+                    minimumValue={2}
+                    maximumValue={25}
+                    step={1}
+                    value={gridSegments}
+                    onValueChange={setGridSegments}
+                    minimumTrackTintColor="#4CAF50"
+                    maximumTrackTintColor="#ddd"
+                  />
+                </View>
+
+                <TouchableOpacity
+                  style={styles.applyButton}
+                  onPress={() => sendToIframe('applyGrid', { segments: gridSegments })}
+                >
+                  <Text style={styles.buttonText}>⚡ Apply Grid</Text>
+                </TouchableOpacity>
+
+                <View style={styles.toggleContainer}>
+                  <Text style={styles.smallLabel}>Show World Grid</Text>
+                  <Switch
+                    value={showWorldGrid}
+                    onValueChange={(value) => {
+                      setShowWorldGrid(value);
+                      sendToIframe('setShowWorldGrid', value);
+                    }}
+                    trackColor={{ false: "#ddd", true: "#4CAF50" }}
+                  />
+                </View>
+
+                <View style={styles.toggleContainer}>
+                  <Text style={styles.smallLabel}>Show Occupied Voxels</Text>
+                  <Switch
+                    value={showOccupiedVoxels}
+                    onValueChange={(value) => {
+                      setShowOccupiedVoxels(value);
+                      sendToIframe('setShowOccupiedVoxels', value);
+                    }}
+                    trackColor={{ false: "#ddd", true: "#4CAF50" }}
+                  />
+                </View>
+
+                <View style={styles.toggleContainer}>
+                  <Text style={styles.smallLabel}>Show Collision Checks</Text>
+                  <Switch
+                    value={showCollisionChecks}
+                    onValueChange={(value) => {
+                      setShowCollisionChecks(value);
+                      sendToIframe('setShowCollisionChecks', value);
+                    }}
+                    trackColor={{ false: "#ddd", true: "#4CAF50" }}
+                  />
+                </View>
+              </>
+            )}
+          </View>
+
+          {/* Physics Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🌍 Physics</Text>
+            <Text style={styles.label}>Gravity: Down</Text>
+            <Text style={styles.smallText}>Press [G] to toggle</Text>
+          </View>
+
+          {/* Rendering Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🎨 Rendering</Text>
+            <Text style={styles.label}>Draw Mode: Lighted</Text>
+            <Text style={styles.smallText}>Press [W] for Wireframe, [P] for Points</Text>
+          </View>
+
+          {/* Stereo Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🕶️ 3D Stereo</Text>
+            <Text style={styles.smallText}>Press [3] for Top-Bottom</Text>
+            <Text style={styles.smallText}>Press [A] for Anaglyph</Text>
+          </View>
+
+          {/* Keyboard Shortcuts */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>⌨️ Shortcuts</Text>
+            <Text style={styles.smallText}>Press [F1] for full help</Text>
+          </View>
+        </ScrollView>
+
+        {/* iframe für Web - Nimmt restlichen Platz */}
         <iframe
           ref={webViewRef}
           src={webAppUri}
           style={{
-            width: "100%",
             flex: 1,
             border: "none",
           }}
-          title="Rubik's Cube Simulator"
+          title="PaDIPS Simulation"
         />
       </View>
     );
@@ -208,33 +363,21 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      {/* Control Buttons - ZWEI Zeilen auf Mobile: Shapes oben, Actions unten */}
+      {/* PaDIPS Control Panel - Oben auf Mobile */}
       <View style={styles.controlsContainer}>
         <View style={styles.buttonRow}>
-          <TouchableOpacity style={styles.button} onPress={() => sendToWebView('morph', 0)}>
-            <Text style={styles.buttonText}>3x3</Text>
+          <TouchableOpacity style={styles.startButton} onPress={() => sendToWebView('start')}>
+            <Text style={styles.buttonText}>▶ Start</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.button} onPress={() => sendToWebView('morph', 1)}>
-            <Text style={styles.buttonText}>2x2</Text>
+          <TouchableOpacity style={styles.stopButton} onPress={() => sendToWebView('stop')}>
+            <Text style={styles.buttonText}>⏸ Stop</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.button} onPress={() => sendToWebView('morph', 3)}>
-            <Text style={styles.buttonText}>Pyra</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.button} onPress={() => sendToWebView('mirror')}>
-            <Text style={styles.buttonText}>🪞 Mirror</Text>
+          <TouchableOpacity style={styles.newButton} onPress={() => sendToWebView('new')}>
+            <Text style={styles.buttonText}>✨ New</Text>
           </TouchableOpacity>
         </View>
-        <View style={styles.buttonRow}>
-          <TouchableOpacity style={styles.button} onPress={() => sendToWebView('undo')}>
-            <Text style={styles.buttonText}>↶ Undo</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.button} onPress={() => sendToWebView('redo')}>
-            <Text style={styles.buttonText}>↷ Redo</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.button} onPress={() => sendToWebView('shuffle', 10)}>
-            <Text style={styles.buttonText}>🎲 Shuffle</Text>
-          </TouchableOpacity>
-        </View>
+
+        <Text style={styles.label}>🎱 Balls: 30 | 🌍 Gravity: Down | ⌨️ Press [F1] for help</Text>
       </View>
 
       {/* WebView */}
@@ -381,6 +524,89 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Platform.OS === 'ios' ? "#f5f5f5" : "#fff",
   },
+  containerWeb: {
+    flex: 1,
+    flexDirection: "row", // Sidebar links, Canvas rechts
+    backgroundColor: "#fff",
+  },
+  sidebarWeb: {
+    width: 280,
+    minWidth: 280,
+    maxWidth: 280,
+    flexShrink: 0,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    borderRightWidth: 1,
+    borderRightColor: "#ddd",
+    shadowColor: "#000",
+    shadowOffset: { width: 2, height: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  sidebarContent: {
+    padding: 20,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 15,
+  },
+  section: {
+    marginBottom: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#555",
+    marginBottom: 8,
+  },
+  statText: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 4,
+  },
+  label: {
+    fontSize: 13,
+    color: "#666",
+    marginBottom: 4,
+  },
+  smallText: {
+    fontSize: 11,
+    color: "#999",
+    fontStyle: "italic",
+    marginTop: 4,
+  },
+  smallLabel: {
+    fontSize: 12,
+    color: "#666",
+  },
+  sliderContainer: {
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  slider: {
+    width: "100%",
+    height: 40,
+  },
+  toggleContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  applyButton: {
+    backgroundColor: "#FF9800",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 6,
+    marginTop: 8,
+    marginBottom: 8,
+    alignItems: "center",
+  },
   controlsContainer: {
     backgroundColor: "#f5f5f5",
     paddingTop: 8,
@@ -395,19 +621,39 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginVertical: 4,
   },
-  buttonRowSingle: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    flexWrap: "wrap",
-    marginVertical: 4,
-  },
-  button: {
-    backgroundColor: "#3d81f6",
-    paddingHorizontal: 12,
+  startButton: {
+    backgroundColor: "#4CAF50",
+    paddingHorizontal: 10,
     paddingVertical: 8,
-    borderRadius: 8,
-    marginHorizontal: 4,
+    borderRadius: 6,
+    marginHorizontal: 2,
+    minWidth: 70,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  stopButton: {
+    backgroundColor: "#f44336",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 6,
+    marginHorizontal: 2,
+    minWidth: 70,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  newButton: {
+    backgroundColor: "#2196F3",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 6,
+    marginHorizontal: 2,
+    minWidth: 70,
     elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -416,8 +662,9 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: "white",
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "bold",
+    textAlign: "center",
   },
   webview: {
     flex: 1,

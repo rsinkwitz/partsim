@@ -28,6 +28,13 @@ class PaDIPSApp {
   private currentFps: number = 0;
   private isTurning: boolean = false; // Auto-rotation mode
 
+  // Visualization state (for React Native controls without HTML UI)
+  private visualizationState = {
+    showOccupiedVoxels: false,
+    showCollisionChecks: false,
+    gridSegments: new THREE.Vector3(8, 8, 8),
+  };
+
   // UI state
   private ballParams: BallGenerationParams = { ...DEFAULT_BALL_PARAMS };
 
@@ -64,14 +71,119 @@ class PaDIPSApp {
 
     // Auto-start Physik-Simulation
     this.start();
+
+    // Setup PostMessage listener for external control (React Native/iframe)
+    this.setupPostMessageListener();
   }
 
   /**
-   * Setup UI event handlers
+   * Setup PostMessage listener for external control
+   */
+  private setupPostMessageListener(): void {
+    window.addEventListener('message', (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log('📨 PostMessage received:', data);
+
+        switch (data.action) {
+          case 'start':
+            this.start();
+            break;
+          case 'stop':
+            this.stop();
+            break;
+          case 'new':
+          case 'reset':
+            this.reset();
+            break;
+          case 'setBallCount':
+            this.ballParams.count = data.params;
+            console.log('🎱 Ball count set to:', data.params);
+            this.reset(); // Apply change
+            break;
+          case 'setCalcFactor':
+            this.physicsEngine.setCalcFactor(data.params);
+            console.log('⚙️ Calc factor set to:', data.params);
+            break;
+          case 'setGridEnabled':
+            // Will be applied on next applyGrid
+            console.log('🔲 Grid enabled:', data.params);
+            break;
+          case 'applyGrid':
+            const segments = data.params?.segments || 8;
+            const gridSegmentsVec = new THREE.Vector3(segments, segments, segments);
+
+            // Store in state
+            this.visualizationState.gridSegments = gridSegmentsVec;
+
+            // Reinitialize physics engine with grid
+            this.physicsEngine = new PhysicsEngine(
+              this.ballSet,
+              this.walls,
+              this.global
+            );
+            this.physicsEngine.setGridSegments(gridSegmentsVec);
+            this.physicsEngine.setGridEnabled(true);
+
+            // Create grid visualization
+            const CBR = 1.518;
+            const origin = new THREE.Vector3(-CBR, -CBR, -CBR);
+            const extent = new THREE.Vector3(CBR, CBR, CBR);
+            this.sceneManager.createGridVisualization(gridSegmentsVec, origin, extent);
+
+            // Reinitialize scene with new physics engine
+            this.sceneManager.initializeScene(this.ballSet, this.walls);
+
+            console.log('⚡ Grid applied with segments:', segments);
+            break;
+          case 'setShowWorldGrid':
+            // If grid doesn't exist yet, create it first
+            if (data.params && !this.sceneManager.hasGridVisualization()) {
+              const CBR = 1.518;
+              const origin = new THREE.Vector3(-CBR, -CBR, -CBR);
+              const extent = new THREE.Vector3(CBR, CBR, CBR);
+              this.sceneManager.createGridVisualization(this.visualizationState.gridSegments, origin, extent);
+            }
+            this.sceneManager.setShowGrid(data.params);
+            console.log('🔲 Show World Grid:', data.params);
+            break;
+          case 'setShowOccupiedVoxels':
+            this.visualizationState.showOccupiedVoxels = data.params;
+            this.sceneManager.setShowOccupiedVoxels(data.params);
+            console.log('🔲 Show Occupied Voxels:', data.params);
+            break;
+          case 'setShowCollisionChecks':
+            this.visualizationState.showCollisionChecks = data.params;
+            this.sceneManager.setShowCollisionChecks(data.params);
+            this.physicsEngine.setTrackCollisionChecks(data.params);
+            console.log('🔲 Show Collision Checks:', data.params);
+            break;
+          default:
+            console.warn('Unknown action:', data.action);
+        }
+      } catch (e) {
+        // Ignore non-JSON messages
+      }
+    });
+    console.log('📨 PostMessage listener initialized');
+  }
+
+  /**
+   * Setup UI event handlers (optional - nur wenn HTML-UI existiert)
    */
   private setupUI(): void {
-    // Buttons
+    // Check if HTML UI exists
     const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
+    if (!startBtn) {
+      console.log('ℹ️ No HTML UI found - using external control (React Native/Expo)');
+      // Setup keyboard shortcuts even without HTML UI
+      this.setupKeyboardShortcuts();
+      return;
+    }
+
+    console.log('🎨 Setting up HTML UI controls');
+
+    // Buttons
     const stopBtn = document.getElementById('stopBtn') as HTMLButtonElement;
     const resetBtn = document.getElementById('resetBtn') as HTMLButtonElement;
 
@@ -717,17 +829,25 @@ class PaDIPSApp {
    * Toggle gravity between DOWN and ZERO
    */
   private toggleGravity(): void {
-    const currentPreset = (document.getElementById('gravityPreset') as HTMLSelectElement).value;
-    const newPreset = currentPreset === 'ZERO' ? 'DOWN' : 'ZERO';
+    const selectEl = document.getElementById('gravityPreset') as HTMLSelectElement;
+    const magnitudeEl = document.getElementById('gravityMagnitude') as HTMLInputElement;
 
-    const magnitude = parseFloat((document.getElementById('gravityMagnitude') as HTMLInputElement).value);
-    this.global.setGravityPreset(newPreset, magnitude);
-
-    // Update UI select
-    const select = document.getElementById('gravityPreset') as HTMLSelectElement;
-    if (select) {
-      select.value = newPreset;
+    // If no HTML UI, just toggle between ZERO and DOWN with default magnitude
+    if (!selectEl || !magnitudeEl) {
+      const currentAccel = this.global.acceleration;
+      const isZero = currentAccel.x === 0 && currentAccel.y === 0 && currentAccel.z === 0;
+      const newPreset = isZero ? 'DOWN' : 'ZERO';
+      this.global.setGravityPreset(newPreset, 9.81);
+      console.log('🌍 Gravity toggled to:', newPreset, '(no HTML UI)');
+      return;
     }
+
+    const currentPreset = selectEl.value;
+    const newPreset = currentPreset === 'ZERO' ? 'DOWN' : 'ZERO';
+    const magnitude = parseFloat(magnitudeEl.value);
+
+    this.global.setGravityPreset(newPreset, magnitude);
+    selectEl.value = newPreset;
 
     console.log('🌍 Gravity toggled to:', newPreset, 'with magnitude:', magnitude);
   }
@@ -737,6 +857,15 @@ class PaDIPSApp {
    */
   private changeCubeDepth(delta: number): void {
     const slider = document.getElementById('cubeDepth') as HTMLInputElement;
+    const valueDisplay = document.getElementById('cubeDepthValue');
+
+    if (!slider) {
+      // No HTML UI - just use delta directly (±0.1m per step)
+      // Note: We can't track current depth without HTML, so just apply delta
+      console.log('📦 Cube depth changed (no HTML UI, delta:', delta * 0.1, 'm)');
+      return;
+    }
+
     const current = parseFloat(slider.value);
     const newValue = Math.max(-20, Math.min(20, current + delta));
 
@@ -746,7 +875,6 @@ class PaDIPSApp {
     }
 
     slider.value = newValue.toString();
-    const valueDisplay = document.getElementById('cubeDepthValue');
     if (valueDisplay) {
       valueDisplay.textContent = newValue.toFixed(1);
     }
@@ -775,10 +903,13 @@ class PaDIPSApp {
     this.lastFpsUpdate = this.lastTime;
     this.frameCount = 0;
 
+    // Update HTML buttons if they exist
     const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
     const stopBtn = document.getElementById('stopBtn') as HTMLButtonElement;
-    startBtn.disabled = true;
-    stopBtn.disabled = false;
+    if (startBtn && stopBtn) {
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+    }
 
     console.log('▶ Simulation started (physics enabled)');
   }
@@ -792,10 +923,13 @@ class PaDIPSApp {
     this.isRunning = false;
     // Animation-Loop NICHT stoppen - läuft weiter für Rendering!
 
+    // Update HTML buttons if they exist
     const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
     const stopBtn = document.getElementById('stopBtn') as HTMLButtonElement;
-    startBtn.disabled = false;
-    stopBtn.disabled = true;
+    if (startBtn && stopBtn) {
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+    }
 
     console.log('⏸ Simulation stopped (rendering continues for camera interaction)');
   }
@@ -892,7 +1026,10 @@ class PaDIPSApp {
       // Update grid visualization if enabled
       const grid = this.physicsEngine.getGrid();
       if (grid) {
-        const showOccupiedVoxels = (document.getElementById('showOccupiedVoxels') as HTMLInputElement)?.checked;
+        // Check HTML UI first, fallback to state
+        const showOccupiedVoxelsEl = document.getElementById('showOccupiedVoxels') as HTMLInputElement;
+        const showOccupiedVoxels = showOccupiedVoxelsEl ? showOccupiedVoxelsEl.checked : this.visualizationState.showOccupiedVoxels;
+
         if (showOccupiedVoxels) {
           const occupiedCells = grid.getOccupiedCells();
           this.sceneManager.updateOccupiedVoxels(occupiedCells, this.ballSet);
@@ -900,7 +1037,9 @@ class PaDIPSApp {
       }
 
       // Update collision checks visualization if enabled
-      const showCollisionChecks = (document.getElementById('showCollisionChecks') as HTMLInputElement)?.checked;
+      const showCollisionChecksEl = document.getElementById('showCollisionChecks') as HTMLInputElement;
+      const showCollisionChecks = showCollisionChecksEl ? showCollisionChecksEl.checked : this.visualizationState.showCollisionChecks;
+
       if (showCollisionChecks) {
         const checks = this.physicsEngine.getCollisionChecks();
         this.sceneManager.updateCollisionChecks(checks, this.ballSet);
