@@ -13,6 +13,8 @@
 - Ball-Wand-Kollision (6 Würfelwände)
 - Gravitation (einstellbar)
 - **Grid-System**: O(n) Kollisionserkennung (opt-in)
+  - **1000 Bälle @ 36 FPS** mit Grid 8×8×8
+  - Ohne Grid: <1 FPS bei 1000 Bällen
 
 ✅ **3D-Rendering**
 - Three.js mit WebGL
@@ -20,7 +22,7 @@
 - Wireframe & Point-Modus
 - Transparente Würfelwände mit gelben Kanten
 - **3D-Stereo**: Anaglyph (Rot-Blau) & Top-Bottom
-- 60+ FPS (400 Bälle mit Grid: 26 FPS)
+- 166 FPS @ 30 Bälle, 36 FPS @ 1000 Bälle (mit Grid)
 
 ✅ **Interaktion**
 - OrbitControls (Maus-Rotation & Zoom)
@@ -38,27 +40,69 @@ npm install
 # Start dev server
 npm run dev
 
+# Build for production
+npm run build
+
 # Open browser
 # http://localhost:5173
 ```
 
 ## 🎮 Steuerung
 
-- **Maus links ziehen**: Kamera rotieren
-- **Maus-Scroll**: Zoom
+### Maus
+- **Links ziehen**: Kamera rotieren
+- **Scroll**: Zoom
+- **Rechts ziehen**: Pan
+
+### Buttons
 - **▶ Start**: Simulation starten
-- **⏸ Stop**: Simulation pausieren
-- **🔄 Reset**: Neue Balls generieren
+- **⏸ Stop**: Simulation pausieren (Rendering läuft weiter)
+- **🔄 New**: Neue Ball-Konfiguration generieren
+
+### Tastatur
+Drücke **[F1]** für vollständige Keyboard-Shortcuts oder siehe [KEYBOARD_SHORTCUTS.md](KEYBOARD_SHORTCUTS.md)
+
+**Wichtigste Shortcuts:**
+- **[S]** oder **[Space]** - Start/Stop
+- **[N]** - New (Reset)
+- **[G]** - Gravity Toggle (Down ↔ Zero)
+- **[K]/[J]** - +50/-50 Bälle (vi-style)
+- **[3]** - Top-Bottom 3D Stereo
+- **[A]** - Anaglyph 3D Stereo
+- **[W]** - Wireframe Mode
+- **[T]** - Turn Mode (Auto-Rotation)
 
 ## 📊 Statistiken
 
 Die UI zeigt in Echtzeit:
 - **FPS**: Frames pro Sekunde
-- **Balls**: Anzahl der Balls
+- **Balls**: Anzahl der Bälle
 - **Generation**: Simulationsschritte
-- **Checks**: Anzahl Kollisionsprüfungen
+- **Checks**: Anzahl Kollisionsprüfungen (zeigt Grid-Optimierung)
 - **Collisions**: Anzahl erkannter Kollisionen
-- **Calc Time**: Berechnungszeit pro Frame
+- **Calc Time**: Berechnungszeit pro Frame (ms)
+
+## 🔲 Grid-System (Performance-Feature)
+
+Das optionale Grid-System reduziert die Kollisionserkennung von O(n²) auf O(n):
+
+### Aktivierung
+1. **Checkbox** "Fast Grid-based Collision Checking" aktivieren
+2. **Grid Segments** wählen (Standard: 8)
+3. **⚡ Apply Grid** klicken
+
+### Visualisierungen
+- **Show World Grid**: Grüne Linien zeigen Voxel-Struktur
+- **Show Occupied Grid Voxels**: Farbige Voxel-Kanten (Ball-Farben)
+- **Show Collision Checks**: Weiße Linien zwischen geprüften Ball-Paaren
+
+### Performance
+- 10 Bälle: 166 FPS
+- 100 Bälle: 60+ FPS
+- 400 Bälle: 26 FPS
+- **1000 Bälle: 36 FPS** (ohne Grid: <1 FPS!)
+
+Details: [GRID_SYSTEM.md](GRID_SYSTEM.md)
 
 ## 🏗️ Architektur
 
@@ -94,10 +138,25 @@ src/
 
 ## 📝 Original-Referenzen
 
-Portiert von:
-- `model.cpp/h`: Physik-Algorithmen
+**Original PaDIPS (1993):**
+- Plattform: Silicon Graphics IRIX
+- Sprache: C++
+- Rendering: IRIS-GL
+- UI: Sun OpenWindows XView
+- Parallelisierung: PVM (Parallel Virtual Machine)
+
+**Dissertation:**
+"Interaktive Partikelsimulationen unter Echtzeitbedingungen parallel verteilt auf einem Verbund von Arbeitsplatzrechnern"
+/ "Interactive Particle Simulations under Real-Time Conditions Distributed in Parallel on a Network of Workstations"
+
+**Autor:** Rainer Sinkwitz  
+**Betreuer:** Prof. Dr. P. Stucki, University of Zurich
+
+**Portiert von:**
+- `model.cpp/h`: Physik-Algorithmen & Grid-System
+- `grid.cpp/h`: Grid-Optimierung (Voxel-basiert)
 - `ui.cpp/h`: UI-Parameter
-- `main.cpp`: Haupt-Loop
+- `main.cpp`: Haupt-Loop & Rendering
 
 ## 🎨 Dokumentation
 
@@ -108,39 +167,34 @@ Portiert von:
 ## 🚧 Roadmap
 
 **Phase 1** ✅ **COMPLETED**
-- Kern-Physik & Rendering
-- Grid-System-Optimierung
-- 3D-Stereo (Anaglyph & Top-Bottom)
-- Keyboard-Shortcuts
-- Web-App mit HTML/CSS UI
+- ✅ Kern-Physik & Rendering
+- ✅ Grid-System-Optimierung (O(n) Kollisionserkennung)
+- ✅ 3D-Stereo (Anaglyph & Top-Bottom)
+- ✅ Keyboard-Shortcuts & F1-Help
+- ✅ Web-App mit HTML/CSS UI
+- ✅ 1000 Bälle @ 36 FPS Performance
 
-**Phase 2**: React Native Expo Integration
-**Phase 3**: Web Worker-Parallelisierung
-**Phase 4**: Advanced Features (Texturen, Schatten, etc.)
-**Phase 5**: React Native Expo
-**Phase 6**: Advanced Features (Stereo, Instancing, etc.)
+**Phase 2** (Future)
+- React Native Expo Integration
+- Web Worker-Parallelisierung
+- Advanced Features (Texturen, Schatten, etc.)
 
 ## 📄 Lizenz
 
-Original PaDIPS © 1993
+Original PaDIPS © 1993 Rainer Sinkwitz  
 Web-Port © 2026
 
 ## 🐛 Debugging
 
-Öffne Browser-Konsole und nutze:
-```javascript
-window.padips  // Zugriff auf App-Instanz
+Öffne Browser-Konsole für Debug-Ausgaben:
 ```
-
-## 🚧 Bekannte Einschränkungen (MVP)
-
-- Nur Brute-Force-Kollision (O(n²))
-- Keine Grid-Optimierung
-- Keine Worker-Parallelisierung
-- Keine React-UI
-- Max. ~50 Balls für 60 FPS
+🔲 Grid-System-Logs
+🎱 Ball-Generation-Logs
+⌨️ Keyboard-Shortcut-Logs
+🎬 Scene-Initialization-Logs
+```
 
 ---
 
-**Nächster Schritt**: Phase 2 - React-UI Migration
+**Status**: Phase 1 MVP vollständig implementiert! 🎉
 
