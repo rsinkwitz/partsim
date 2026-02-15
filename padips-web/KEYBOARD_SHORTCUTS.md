@@ -3,7 +3,7 @@
 PaDIPS supports the following keyboard shortcuts for quick access to features:
 
 ## Simulation Control
-- **[S]** - Start/Stop simulation (toggle)
+- **[S]** or **[Space]** - Start/Stop simulation (toggle)
 - **[N]** - New simulation (reset with current parameters)
 - **[G]** - Toggle Gravity between Down and Zero
 

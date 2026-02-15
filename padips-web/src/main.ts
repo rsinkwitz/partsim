@@ -358,13 +358,14 @@ class PaDIPSApp {
       // ===== OTHER SHORTCUTS =====
       switch (keyLower) {
         case 's':
+        case ' ': // Spacebar for Start/Stop
           // Start/Stop toggle
           if (this.isRunning) {
             this.stop();
           } else {
             this.start();
           }
-          console.log('⌨️ [S] Start/Stop toggled');
+          console.log('⌨️ [S/Space] Start/Stop toggled');
           break;
 
         case 'n':
@@ -424,7 +425,7 @@ class PaDIPSApp {
     });
 
     console.log('⌨️ Keyboard shortcuts enabled:');
-    console.log('  [S] Start/Stop');
+    console.log('  [S] or [Space] Start/Stop');
     console.log('  [N] New simulation');
     console.log('  [G] Toggle Gravity (Down ↔ Zero)');
     console.log('  [3] Top-Bottom 3D stereo (repeat=off)');

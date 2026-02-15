@@ -177,6 +177,11 @@
         background: #da190b;
       }
 
+      button.stop:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+
       button.reset {
         background: #2196F3;
       }
@@ -433,7 +438,7 @@
 
         <div class="key-section">
           <h3>Simulation</h3>
-          <div class="key-line"><kbd>S</kbd> Start / Stop simulation</div>
+          <div class="key-line"><kbd>S</kbd> or <kbd>Space</kbd> Start / Stop simulation</div>
           <div class="key-line"><kbd>N</kbd> New simulation (reset)</div>
           <div class="key-line"><kbd>G</kbd> Toggle Gravity (Down ↔ Zero)</div>
         </div>
