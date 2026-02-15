@@ -29,6 +29,7 @@ export class SceneManager {
   // Grid visualization
   private gridLines: THREE.LineSegments | null = null;
   private occupiedVoxels: THREE.Group | null = null;
+  private collisionChecksLines: THREE.LineSegments | null = null;
   private showGrid: boolean = false;
   private showOccupiedVoxels: boolean = false;
   private showCollisionChecks: boolean = false;
@@ -469,6 +470,14 @@ export class SceneManager {
       console.log('✅ Occupied voxels removed');
     }
 
+    if (this.collisionChecksLines) {
+      this.scene.remove(this.collisionChecksLines);
+      this.collisionChecksLines.geometry.dispose();
+      (this.collisionChecksLines.material as THREE.Material).dispose();
+      this.collisionChecksLines = null;
+      console.log('✅ Collision checks lines removed');
+    }
+
     console.log('✅ clearScene complete');
   }
 
@@ -896,6 +905,13 @@ export class SceneManager {
   }
 
   /**
+   * Check if grid visualization exists
+   */
+  hasGridVisualization(): boolean {
+    return this.gridLines !== null;
+  }
+
+  /**
    * Toggle occupied voxels visualization
    */
   setShowOccupiedVoxels(show: boolean): void {
@@ -911,8 +927,62 @@ export class SceneManager {
    */
   setShowCollisionChecks(show: boolean): void {
     this.showCollisionChecks = show;
-    // TODO: Implement visualization of actual collision checks (lines between balls being checked)
+    if (!show && this.collisionChecksLines) {
+      this.scene.remove(this.collisionChecksLines);
+      this.collisionChecksLines.geometry.dispose();
+      (this.collisionChecksLines.material as THREE.Material).dispose();
+      this.collisionChecksLines = null;
+    }
     console.log('🔲 Show Collision Checks:', show);
+  }
+
+  /**
+   * Update collision checks visualization
+   * Shows white lines between balls being checked for collision
+   */
+  updateCollisionChecks(checks: Array<{ ballIdA: number; ballIdB: number }>, ballSet: any): void {
+    // Remove existing lines
+    if (this.collisionChecksLines) {
+      this.scene.remove(this.collisionChecksLines);
+      this.collisionChecksLines.geometry.dispose();
+      (this.collisionChecksLines.material as THREE.Material).dispose();
+      this.collisionChecksLines = null;
+    }
+
+    if (!this.showCollisionChecks || checks.length === 0) {
+      return;
+    }
+
+    const vertices: number[] = [];
+
+    // Create lines between checked ball pairs
+    for (const check of checks) {
+      const ballA = ballSet.get(check.ballIdA);
+      const ballB = ballSet.get(check.ballIdB);
+
+      if (ballA && ballB) {
+        // Line from center to center
+        vertices.push(
+          ballA.position.x, ballA.position.y, ballA.position.z,
+          ballB.position.x, ballB.position.y, ballB.position.z
+        );
+      }
+    }
+
+    if (vertices.length > 0) {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+
+      const material = new THREE.LineBasicMaterial({
+        color: 0xffffff, // White
+        opacity: 0.4,
+        transparent: true,
+        linewidth: 2
+      });
+
+      this.collisionChecksLines = new THREE.LineSegments(geometry, material);
+      this.scene.add(this.collisionChecksLines);
+    }
   }
 
   /**

@@ -217,7 +217,23 @@ class PaDIPSApp {
 
     const showWorldGrid = document.getElementById('showWorldGrid') as HTMLInputElement;
     showWorldGrid.addEventListener('change', () => {
-      this.sceneManager.setShowGrid(showWorldGrid.checked);
+      const show = showWorldGrid.checked;
+
+      // If user wants to show grid but it doesn't exist yet, create it
+      if (show && !this.sceneManager.hasGridVisualization()) {
+        const gridEnabled = (document.getElementById('gridEnabled') as HTMLInputElement)?.checked;
+        if (gridEnabled) {
+          // Grid system is enabled, create visualization
+          const gridSegmentsValue = parseInt((document.getElementById('gridSegments') as HTMLInputElement).value);
+          const segments = new THREE.Vector3(gridSegmentsValue, gridSegmentsValue, gridSegmentsValue);
+          const CBR = 1.518;
+          const origin = new THREE.Vector3(-CBR, -CBR, -CBR);
+          const extent = new THREE.Vector3(CBR, CBR, CBR);
+          this.sceneManager.createGridVisualization(segments, origin, extent);
+        }
+      }
+
+      this.sceneManager.setShowGrid(show);
     });
 
     const showOccupiedVoxels = document.getElementById('showOccupiedVoxels') as HTMLInputElement;
@@ -227,7 +243,10 @@ class PaDIPSApp {
 
     const showCollisionChecks = document.getElementById('showCollisionChecks') as HTMLInputElement;
     showCollisionChecks.addEventListener('change', () => {
-      this.sceneManager.setShowCollisionChecks(showCollisionChecks.checked);
+      const enabled = showCollisionChecks.checked;
+      this.sceneManager.setShowCollisionChecks(enabled);
+      this.physicsEngine.setTrackCollisionChecks(enabled);
+      console.log('🔲 Collision checks tracking:', enabled);
     });
 
     // Initialize grid viz group as disabled
@@ -642,6 +661,13 @@ class PaDIPSApp {
       console.log('🔲 Grid system disabled');
     }
 
+    // Re-enable collision check tracking if it was enabled
+    const showCollisionChecks = (document.getElementById('showCollisionChecks') as HTMLInputElement)?.checked;
+    if (showCollisionChecks) {
+      this.physicsEngine.setTrackCollisionChecks(true);
+      console.log('🔲 Collision check tracking re-enabled');
+    }
+
     // Reinitialize scene
     this.sceneManager.initializeScene(this.ballSet, this.walls);
     this.sceneManager.render();
@@ -806,6 +832,13 @@ class PaDIPSApp {
       console.log('🔲 Grid reinitialized for new ball set');
     }
 
+    // Re-enable collision check tracking if it was enabled
+    const showCollisionChecks = (document.getElementById('showCollisionChecks') as HTMLInputElement)?.checked;
+    if (showCollisionChecks) {
+      this.physicsEngine.setTrackCollisionChecks(true);
+      console.log('🔲 Collision check tracking re-enabled');
+    }
+
     // Reinitialize scene (clears old visualizations)
     console.log('🎬 Calling initializeScene with', this.ballSet.num, 'balls');
     this.sceneManager.initializeScene(this.ballSet, this.walls);
@@ -864,6 +897,13 @@ class PaDIPSApp {
           const occupiedCells = grid.getOccupiedCells();
           this.sceneManager.updateOccupiedVoxels(occupiedCells, this.ballSet);
         }
+      }
+
+      // Update collision checks visualization if enabled
+      const showCollisionChecks = (document.getElementById('showCollisionChecks') as HTMLInputElement)?.checked;
+      if (showCollisionChecks) {
+        const checks = this.physicsEngine.getCollisionChecks();
+        this.sceneManager.updateCollisionChecks(checks, this.ballSet);
       }
     }
 

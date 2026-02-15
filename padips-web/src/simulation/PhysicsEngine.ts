@@ -16,6 +16,11 @@ export interface PhysicsStats {
   calcTime: number; // milliseconds
 }
 
+export interface CollisionCheck {
+  ballIdA: number;
+  ballIdB: number;
+}
+
 export class PhysicsEngine {
   private ballSet: BallSet;
   private walls: Parallelogram[];
@@ -30,6 +35,10 @@ export class PhysicsEngine {
   private grid: Grid | null = null;
   private gridEnabled: boolean = false;
   private gridSegments: THREE.Vector3 = new THREE.Vector3(8, 8, 8);
+
+  // Collision checks visualization
+  private collisionChecks: CollisionCheck[] = [];
+  private trackCollisionChecks: boolean = false;
 
   // Statistics
   public stats: PhysicsStats = {
@@ -55,6 +64,11 @@ export class PhysicsEngine {
     const startTime = performance.now();
     this.stats.numChecks = 0;
     this.stats.numCollisions = 0;
+
+    // Clear collision checks from last frame
+    if (this.trackCollisionChecks) {
+      this.collisionChecks = [];
+    }
 
     for (let k = 0; k < this.calcFactor; k++) {
       // Let global communicate with each ball (apply gravity)
@@ -107,6 +121,12 @@ export class PhysicsEngine {
         const ballB = this.ballSet.get(j);
         if (ballB) {
           this.stats.numChecks++;
+
+          // Track this check for visualization
+          if (this.trackCollisionChecks) {
+            this.collisionChecks.push({ ballIdA: i, ballIdB: j });
+          }
+
           const result = ballA.communicate(ballB);
           if (result.collided) {
             this.stats.numCollisions++;
@@ -145,6 +165,12 @@ export class PhysicsEngine {
 
         if (ballA && ballB) {
           this.stats.numChecks++;
+
+          // Track this check for visualization
+          if (this.trackCollisionChecks) {
+            this.collisionChecks.push({ ballIdA: i, ballIdB: j });
+          }
+
           const result = ballA.communicate(ballB);
           if (result.collided) {
             this.stats.numCollisions++;
@@ -292,6 +318,23 @@ export class PhysicsEngine {
 
   setCollisionsEnabled(enabled: boolean): void {
     this.collisionsEnabled = enabled;
+  }
+
+  /**
+   * Enable/disable collision check tracking for visualization
+   */
+  setTrackCollisionChecks(enabled: boolean): void {
+    this.trackCollisionChecks = enabled;
+    if (!enabled) {
+      this.collisionChecks = [];
+    }
+  }
+
+  /**
+   * Get current collision checks (for visualization)
+   */
+  getCollisionChecks(): CollisionCheck[] {
+    return this.collisionChecks;
   }
 }
 
