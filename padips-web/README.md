@@ -7,21 +7,26 @@
 ## 🎯 Phase 1 Features
 
 ✅ **Kern-Physik**
-- 30 Balls bei Start
+- 30 Balls bei Start (bis zu 1000 möglich)
 - Euler-Integration
 - Ball-Ball-Kollision (elastischer Stoß)
 - Ball-Wand-Kollision (6 Würfelwände)
 - Gravitation (einstellbar)
+- **Grid-System**: O(n) Kollisionserkennung (opt-in)
 
 ✅ **3D-Rendering**
 - Three.js mit WebGL
 - Beleuchtete Kugeln (Phong-Shading)
-- Transparente Würfelwände
-- 60 FPS
+- Wireframe & Point-Modus
+- Transparente Würfelwände mit gelben Kanten
+- **3D-Stereo**: Anaglyph (Rot-Blau) & Top-Bottom
+- 60+ FPS (400 Bälle mit Grid: 26 FPS)
 
 ✅ **Interaktion**
 - OrbitControls (Maus-Rotation & Zoom)
 - Start/Stop/Reset Buttons
+- **Keyboard-Shortcuts**: [S] Start/Stop, [N] New, [J/K] Balls ±50, etc.
+- **F1**: Keyboard-Help-Overlay
 - Echtzeit-Statistiken
 
 ## 🚀 Quick Start
@@ -67,15 +72,16 @@ src/
 │   └── Constants.ts   # Konstanten
 │
 ├── simulation/        # Physik-Engine
-│   └── PhysicsEngine.ts  # Kollision & Integration
+│   ├── PhysicsEngine.ts  # Kollision & Integration
+│   └── Grid.ts        # Grid-System (O(n) Optimierung)
 │
 ├── rendering/         # 3D-Rendering
-│   └── SceneManager.ts   # Three.js Scene
+│   └── SceneManager.ts   # Three.js Scene & Visualisierung
 │
 ├── utils/            # Hilfsfunktionen
 │   └── BallGenerator.ts  # Ball-Generierung
 │
-└── main.ts           # Haupt-App
+└── main.ts           # Haupt-App & UI-Controller
 ```
 
 ## 🔧 Technologie-Stack
@@ -93,11 +99,24 @@ Portiert von:
 - `ui.cpp/h`: UI-Parameter
 - `main.cpp`: Haupt-Loop
 
-## 🎨 Features für nächste Phasen
+## 🎨 Dokumentation
 
-**Phase 2**: React-UI mit Material-UI
-**Phase 3**: Grid-Optimierung (O(n) Kollision)
-**Phase 4**: Web Worker-Parallelisierung
+- **[KEYBOARD_SHORTCUTS.md](KEYBOARD_SHORTCUTS.md)**: Alle Tastatur-Shortcuts
+- **[GRID_SYSTEM.md](GRID_SYSTEM.md)**: Grid-System für O(n) Kollisionserkennung
+- **[README.md](README.md)**: Dieses Dokument
+
+## 🚧 Roadmap
+
+**Phase 1** ✅ **COMPLETED**
+- Kern-Physik & Rendering
+- Grid-System-Optimierung
+- 3D-Stereo (Anaglyph & Top-Bottom)
+- Keyboard-Shortcuts
+- Web-App mit HTML/CSS UI
+
+**Phase 2**: React Native Expo Integration
+**Phase 3**: Web Worker-Parallelisierung
+**Phase 4**: Advanced Features (Texturen, Schatten, etc.)
 **Phase 5**: React Native Expo
 **Phase 6**: Advanced Features (Stereo, Instancing, etc.)
 

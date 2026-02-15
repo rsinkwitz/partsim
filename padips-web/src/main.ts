@@ -3,6 +3,7 @@
  * Phase 1 MVP - Vanilla TypeScript + Three.js
  */
 
+import * as THREE from 'three';
 import { BallSet } from './core/BallSet';
 import { GlobalParams } from './core/GlobalParams';
 import { Parallelogram } from './core/Parallelogram';
@@ -185,6 +186,54 @@ class PaDIPSApp {
       this.global.elasticity = value / 100;
       console.log('⚡ Global elasticity:', (value / 100).toFixed(2));
     }, 100);
+
+    // Grid system controls
+    const gridEnabled = document.getElementById('gridEnabled') as HTMLInputElement;
+    const gridVizGroup = document.querySelector('.grid-viz-group') as HTMLElement;
+
+    gridEnabled.addEventListener('change', () => {
+      const enabled = gridEnabled.checked;
+
+      // Toggle visualization controls
+      if (gridVizGroup) {
+        if (enabled) {
+          gridVizGroup.classList.remove('disabled');
+        } else {
+          gridVizGroup.classList.add('disabled');
+        }
+      }
+
+      console.log('🔲 Grid mode:', enabled ? 'ENABLED' : 'DISABLED');
+    });
+
+    this.setupRangeControl('gridSegments', (value) => {
+      console.log('🔲 Grid segments changed to:', value, '(click Apply to activate)');
+    });
+
+    const applyGridBtn = document.getElementById('applyGridBtn') as HTMLButtonElement;
+    applyGridBtn.addEventListener('click', () => {
+      this.applyGrid();
+    });
+
+    const showWorldGrid = document.getElementById('showWorldGrid') as HTMLInputElement;
+    showWorldGrid.addEventListener('change', () => {
+      this.sceneManager.setShowGrid(showWorldGrid.checked);
+    });
+
+    const showOccupiedVoxels = document.getElementById('showOccupiedVoxels') as HTMLInputElement;
+    showOccupiedVoxels.addEventListener('change', () => {
+      this.sceneManager.setShowOccupiedVoxels(showOccupiedVoxels.checked);
+    });
+
+    const showCollisionChecks = document.getElementById('showCollisionChecks') as HTMLInputElement;
+    showCollisionChecks.addEventListener('change', () => {
+      this.sceneManager.setShowCollisionChecks(showCollisionChecks.checked);
+    });
+
+    // Initialize grid viz group as disabled
+    if (gridVizGroup) {
+      gridVizGroup.classList.add('disabled');
+    }
 
     // Keyboard shortcuts
     this.setupKeyboardShortcuts();
@@ -508,6 +557,107 @@ class PaDIPSApp {
   }
 
   /**
+   * Apply grid configuration
+   */
+  private applyGrid(): void {
+    console.log('🔲 Applying grid configuration...');
+
+    const gridEnabled = (document.getElementById('gridEnabled') as HTMLInputElement).checked;
+    const gridSegmentsValue = parseInt((document.getElementById('gridSegments') as HTMLInputElement).value);
+    const showWorldGrid = (document.getElementById('showWorldGrid') as HTMLInputElement).checked;
+    const showOccupiedVoxels = (document.getElementById('showOccupiedVoxels') as HTMLInputElement).checked;
+
+    // Calculate maximum allowed ball radius for grid
+    const CBR = 1.518; // Cube radius
+    const cellSize = (2 * CBR) / gridSegmentsValue;
+    const maxAllowedRadius = cellSize / 2;
+
+    // Adjust ball parameters if needed
+    if (this.ballParams.maxRadius > maxAllowedRadius) {
+      console.warn('⚠️ Max ball radius too large for grid, adjusting...');
+      this.ballParams.maxRadius = maxAllowedRadius * 0.9; // 90% of max to be safe
+
+      // Update UI
+      const maxRadiusSlider = document.getElementById('maxRadius') as HTMLInputElement;
+      const maxRadiusValue = document.getElementById('maxRadiusValue');
+      if (maxRadiusSlider && maxRadiusValue) {
+        maxRadiusSlider.value = (this.ballParams.maxRadius * 100).toString();
+        maxRadiusValue.textContent = this.ballParams.maxRadius.toFixed(2);
+      }
+    }
+
+    if (this.ballParams.minRadius > maxAllowedRadius) {
+      console.warn('⚠️ Min ball radius too large for grid, adjusting...');
+      this.ballParams.minRadius = maxAllowedRadius * 0.5;
+
+      // Update UI
+      const minRadiusSlider = document.getElementById('minRadius') as HTMLInputElement;
+      const minRadiusValue = document.getElementById('minRadiusValue');
+      if (minRadiusSlider && minRadiusValue) {
+        minRadiusSlider.value = (this.ballParams.minRadius * 100).toString();
+        minRadiusValue.textContent = this.ballParams.minRadius.toFixed(2);
+      }
+    }
+
+    // Stop simulation
+    const wasRunning = this.isRunning;
+    this.stop();
+
+    // Regenerate balls with adjusted parameters
+    console.log('🎱 Regenerating balls with grid-compatible size...');
+    this.ballSet = generateBalls(this.ballParams);
+
+    // Reinitialize physics engine with grid
+    this.physicsEngine = new PhysicsEngine(
+      this.ballSet,
+      this.walls,
+      this.global
+    );
+
+    if (gridEnabled) {
+      // Initialize grid
+      const segments = new THREE.Vector3(gridSegmentsValue, gridSegmentsValue, gridSegmentsValue);
+      this.physicsEngine.setGridSegments(segments);
+      this.physicsEngine.setGridEnabled(true);
+
+      // Validate configuration
+      const validation = this.physicsEngine.validateGridConfiguration();
+      if (!validation.valid) {
+        console.error('❌ Grid validation failed:', validation.errors);
+        alert('Grid configuration invalid:\n' + validation.errors.join('\n'));
+        return;
+      }
+
+      // Create grid visualization
+      const CBR = 1.518;
+      const origin = new THREE.Vector3(-CBR, -CBR, -CBR);
+      const extent = new THREE.Vector3(CBR, CBR, CBR);
+      this.sceneManager.createGridVisualization(segments, origin, extent);
+      this.sceneManager.setShowGrid(showWorldGrid);
+      this.sceneManager.setShowOccupiedVoxels(showOccupiedVoxels);
+
+      console.log('✅ Grid system applied successfully');
+    } else {
+      this.physicsEngine.setGridEnabled(false);
+      console.log('🔲 Grid system disabled');
+    }
+
+    // Reinitialize scene
+    this.sceneManager.initializeScene(this.ballSet, this.walls);
+    this.sceneManager.render();
+
+    // Update stats
+    this.updateStats();
+
+    // Restart if was running
+    if (wasRunning) {
+      this.start();
+    }
+
+    console.log('🔲 Grid application complete');
+  }
+
+  /**
    * Change wireframe density by delta
    */
   private changeWireframeDensity(delta: number): void {
@@ -637,6 +787,9 @@ class PaDIPSApp {
     this.ballSet = generateBalls(this.ballParams);
     console.log('✅ Generated', this.ballSet.num, 'balls');
 
+    // Check if grid is enabled
+    const gridEnabled = (document.getElementById('gridEnabled') as HTMLInputElement)?.checked;
+
     // Reinitialize physics engine
     this.physicsEngine = new PhysicsEngine(
       this.ballSet,
@@ -644,7 +797,16 @@ class PaDIPSApp {
       this.global
     );
 
-    // Reinitialize scene
+    // Reinitialize grid if it was enabled
+    if (gridEnabled) {
+      const gridSegmentsValue = parseInt((document.getElementById('gridSegments') as HTMLInputElement).value);
+      const segments = new THREE.Vector3(gridSegmentsValue, gridSegmentsValue, gridSegmentsValue);
+      this.physicsEngine.setGridSegments(segments);
+      this.physicsEngine.setGridEnabled(true);
+      console.log('🔲 Grid reinitialized for new ball set');
+    }
+
+    // Reinitialize scene (clears old visualizations)
     console.log('🎬 Calling initializeScene with', this.ballSet.num, 'balls');
     this.sceneManager.initializeScene(this.ballSet, this.walls);
     console.log('✅ initializeScene complete');
@@ -693,6 +855,16 @@ class PaDIPSApp {
 
       // Update ball positions in rendering
       this.sceneManager.updateBalls(this.ballSet);
+
+      // Update grid visualization if enabled
+      const grid = this.physicsEngine.getGrid();
+      if (grid) {
+        const showOccupiedVoxels = (document.getElementById('showOccupiedVoxels') as HTMLInputElement)?.checked;
+        if (showOccupiedVoxels) {
+          const occupiedCells = grid.getOccupiedCells();
+          this.sceneManager.updateOccupiedVoxels(occupiedCells, this.ballSet);
+        }
+      }
     }
 
     // Rendering läuft IMMER (auch im Stopp-Modus)

@@ -190,6 +190,35 @@
         background: #0b7dda;
       }
 
+      button.apply {
+        background: #FF9800;
+        width: 100%;
+      }
+
+      button.apply:hover {
+        background: #F57C00;
+      }
+
+      .grid-config-group {
+        background: #f0f8ff;
+        padding: 12px;
+        border-radius: 6px;
+        margin-bottom: 12px;
+        border: 2px solid #4CAF50;
+      }
+
+      .grid-viz-group {
+        background: #f5f5f5;
+        padding: 10px;
+        border-radius: 4px;
+        margin-bottom: 12px;
+      }
+
+      .grid-viz-group.disabled {
+        opacity: 0.4;
+        pointer-events: none;
+      }
+
       #stats {
         margin-top: 15px;
         padding-top: 15px;
@@ -362,6 +391,52 @@
                   <input type="checkbox" id="collisionsEnabled" checked>
                   <span>Collisions Enabled</span>
               </label>
+          </div>
+
+          <h2>🔲 Grid System</h2>
+
+          <div class="grid-config-group">
+              <div class="checkbox-group">
+                  <label>
+                      <input type="checkbox" id="gridEnabled">
+                      <span>Fast Grid-based Collision Checking</span>
+                  </label>
+              </div>
+
+              <div class="control-group">
+                  <label>
+                      <span>Grid Segments</span>
+                      <span class="value" id="gridSegmentsValue">8</span>
+                  </label>
+                  <input type="range" id="gridSegments" min="2" max="25" value="8" step="1">
+              </div>
+
+              <div class="control-group">
+                  <button id="applyGridBtn" class="apply">⚡ Apply Grid</button>
+              </div>
+          </div>
+
+          <div class="grid-viz-group">
+              <div class="checkbox-group">
+                  <label>
+                      <input type="checkbox" id="showWorldGrid">
+                      <span>Show World Grid</span>
+                  </label>
+              </div>
+
+              <div class="checkbox-group">
+                  <label>
+                      <input type="checkbox" id="showOccupiedVoxels">
+                      <span>Show Occupied Grid Voxels</span>
+                  </label>
+              </div>
+
+              <div class="checkbox-group">
+                  <label>
+                      <input type="checkbox" id="showCollisionChecks">
+                      <span>Show Collision Checks</span>
+                  </label>
+              </div>
           </div>
 
           <h2>🎨 Rendering</h2>

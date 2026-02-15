@@ -26,6 +26,13 @@ export class SceneManager {
   private wallMeshes: THREE.Mesh[] = [];
   private wallGroup: THREE.Group | null = null;
 
+  // Grid visualization
+  private gridLines: THREE.LineSegments | null = null;
+  private occupiedVoxels: THREE.Group | null = null;
+  private showGrid: boolean = false;
+  private showOccupiedVoxels: boolean = false;
+  private showCollisionChecks: boolean = false;
+
   private drawMode: DrawMode = DrawMode.LIGHTED;
   private sphereSegments: number = 16;
   private wireframeSegments: number = 8; // Segments für Wireframe-Modus (4-32)
@@ -440,6 +447,28 @@ export class SceneManager {
     }
     this.wallMeshes = [];
     this.wallGroup = null;
+
+    // Remove grid visualizations
+    if (this.gridLines) {
+      this.scene.remove(this.gridLines);
+      this.gridLines.geometry.dispose();
+      (this.gridLines.material as THREE.Material).dispose();
+      this.gridLines = null;
+      console.log('✅ Grid lines removed');
+    }
+
+    if (this.occupiedVoxels) {
+      this.scene.remove(this.occupiedVoxels);
+      this.occupiedVoxels.children.forEach(child => {
+        if (child instanceof THREE.LineSegments) {
+          child.geometry.dispose();
+          (child.material as THREE.Material).dispose();
+        }
+      });
+      this.occupiedVoxels = null;
+      console.log('✅ Occupied voxels removed');
+    }
+
     console.log('✅ clearScene complete');
   }
 
@@ -701,5 +730,199 @@ export class SceneManager {
     });
     console.groupEnd();
   }
-}
 
+  /**
+   * Create and display grid visualization
+   */
+  createGridVisualization(segments: THREE.Vector3, origin: THREE.Vector3, extent: THREE.Vector3): void {
+    // Remove existing grid
+    if (this.gridLines) {
+      this.scene.remove(this.gridLines);
+      this.gridLines.geometry.dispose();
+      (this.gridLines.material as THREE.Material).dispose();
+      this.gridLines = null;
+    }
+
+    const size = new THREE.Vector3().subVectors(extent, origin);
+    const cellSize = new THREE.Vector3(
+      size.x / segments.x,
+      size.y / segments.y,
+      size.z / segments.z
+    );
+
+    const geometry = new THREE.BufferGeometry();
+    const vertices: number[] = [];
+
+    // X-direction lines
+    for (let z = 0; z <= segments.z; z++) {
+      for (let y = 0; y <= segments.y; y++) {
+        const yPos = origin.y + y * cellSize.y;
+        const zPos = origin.z + z * cellSize.z;
+        vertices.push(origin.x, yPos, zPos);
+        vertices.push(extent.x, yPos, zPos);
+      }
+    }
+
+    // Y-direction lines
+    for (let z = 0; z <= segments.z; z++) {
+      for (let x = 0; x <= segments.x; x++) {
+        const xPos = origin.x + x * cellSize.x;
+        const zPos = origin.z + z * cellSize.z;
+        vertices.push(xPos, origin.y, zPos);
+        vertices.push(xPos, extent.y, zPos);
+      }
+    }
+
+    // Z-direction lines
+    for (let y = 0; y <= segments.y; y++) {
+      for (let x = 0; x <= segments.x; x++) {
+        const xPos = origin.x + x * cellSize.x;
+        const yPos = origin.y + y * cellSize.y;
+        vertices.push(xPos, yPos, origin.z);
+        vertices.push(xPos, yPos, extent.z);
+      }
+    }
+
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+
+    const material = new THREE.LineBasicMaterial({
+      color: 0x00ff00, // Green
+      opacity: 0.3,
+      transparent: true
+    });
+
+    this.gridLines = new THREE.LineSegments(geometry, material);
+    this.gridLines.visible = this.showGrid;
+    this.scene.add(this.gridLines);
+
+    console.log('🔲 Grid visualization created:', segments);
+  }
+
+  /**
+   * Update occupied voxels visualization
+   * Shows voxel edges as colored lines (ball color, or blended if multiple balls)
+   */
+  updateOccupiedVoxels(occupiedCells: Array<{
+    indices: THREE.Vector3;
+    center: THREE.Vector3;
+    ballIds: number[];
+    cellSize: THREE.Vector3;
+  }>, ballSet: any): void {
+    // Remove existing voxels
+    if (this.occupiedVoxels) {
+      this.scene.remove(this.occupiedVoxels);
+      this.occupiedVoxels.children.forEach(child => {
+        if (child instanceof THREE.LineSegments) {
+          child.geometry.dispose();
+          (child.material as THREE.Material).dispose();
+        }
+      });
+      this.occupiedVoxels = null;
+    }
+
+    if (!this.showOccupiedVoxels || occupiedCells.length === 0) {
+      return;
+    }
+
+    this.occupiedVoxels = new THREE.Group();
+
+    for (const cell of occupiedCells) {
+      // Get ball color (if multiple balls, use first one's color)
+      let ballColor = 0xffffff; // Default white
+      if (cell.ballIds.length > 0) {
+        const firstBall = ballSet.get(cell.ballIds[0]);
+        if (firstBall) {
+          ballColor = firstBall.color;
+        }
+      }
+
+      // Calculate voxel corners
+      const halfSize = new THREE.Vector3(
+        cell.cellSize.x / 2,
+        cell.cellSize.y / 2,
+        cell.cellSize.z / 2
+      );
+
+      const min = new THREE.Vector3().subVectors(cell.center, halfSize);
+      const max = new THREE.Vector3().addVectors(cell.center, halfSize);
+
+      // Create voxel edge lines (12 edges of a box)
+      const vertices: number[] = [];
+
+      // Bottom face (4 edges)
+      vertices.push(min.x, min.y, min.z,  max.x, min.y, min.z); // Front
+      vertices.push(max.x, min.y, min.z,  max.x, max.y, min.z); // Right
+      vertices.push(max.x, max.y, min.z,  min.x, max.y, min.z); // Back
+      vertices.push(min.x, max.y, min.z,  min.x, min.y, min.z); // Left
+
+      // Top face (4 edges)
+      vertices.push(min.x, min.y, max.z,  max.x, min.y, max.z); // Front
+      vertices.push(max.x, min.y, max.z,  max.x, max.y, max.z); // Right
+      vertices.push(max.x, max.y, max.z,  min.x, max.y, max.z); // Back
+      vertices.push(min.x, max.y, max.z,  min.x, min.y, max.z); // Left
+
+      // Vertical edges (4 edges)
+      vertices.push(min.x, min.y, min.z,  min.x, min.y, max.z); // Front-left
+      vertices.push(max.x, min.y, min.z,  max.x, min.y, max.z); // Front-right
+      vertices.push(max.x, max.y, min.z,  max.x, max.y, max.z); // Back-right
+      vertices.push(min.x, max.y, min.z,  min.x, max.y, max.z); // Back-left
+
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+
+      const material = new THREE.LineBasicMaterial({
+        color: ballColor,
+        opacity: 0.8,
+        transparent: true,
+        linewidth: 2
+      });
+
+      const lines = new THREE.LineSegments(geometry, material);
+      this.occupiedVoxels.add(lines);
+    }
+
+    this.scene.add(this.occupiedVoxels);
+  }
+
+  /**
+   * Toggle grid visualization
+   */
+  setShowGrid(show: boolean): void {
+    this.showGrid = show;
+    if (this.gridLines) {
+      this.gridLines.visible = show;
+    }
+    console.log('🔲 Show Grid:', show);
+  }
+
+  /**
+   * Toggle occupied voxels visualization
+   */
+  setShowOccupiedVoxels(show: boolean): void {
+    this.showOccupiedVoxels = show;
+    if (this.occupiedVoxels) {
+      this.occupiedVoxels.visible = show;
+    }
+    console.log('🔲 Show Occupied Voxels:', show);
+  }
+
+  /**
+   * Toggle collision checks visualization
+   */
+  setShowCollisionChecks(show: boolean): void {
+    this.showCollisionChecks = show;
+    // TODO: Implement visualization of actual collision checks (lines between balls being checked)
+    console.log('🔲 Show Collision Checks:', show);
+  }
+
+  /**
+   * Get grid visualization state
+   */
+  getGridVisualizationState() {
+    return {
+      showGrid: this.showGrid,
+      showOccupiedVoxels: this.showOccupiedVoxels,
+      showCollisionChecks: this.showCollisionChecks
+    };
+  }
+}
