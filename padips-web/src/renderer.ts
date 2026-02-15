@@ -98,8 +98,8 @@ class PaDIPSApp {
             break;
           case 'setBallCount':
             this.ballParams.count = data.params;
-            console.log('🎱 Ball count set to:', data.params);
-            this.reset(); // Apply change
+            console.log('🎱 Ball count will be:', data.params, '(click New to apply)');
+            // DON'T reset immediately - only on "new" button
             break;
           case 'setCalcFactor':
             this.physicsEngine.setCalcFactor(data.params);
@@ -135,6 +135,22 @@ class PaDIPSApp {
             this.sceneManager.initializeScene(this.ballSet, this.walls);
 
             console.log('⚡ Grid applied with segments:', segments);
+            break;
+          case 'disableGrid':
+            // Disable grid system
+            this.physicsEngine.setGridEnabled(false);
+
+            // Clear grid visualization
+            this.sceneManager.clearGridVisualization();
+
+            // Reset visualizations
+            this.visualizationState.showOccupiedVoxels = false;
+            this.visualizationState.showCollisionChecks = false;
+            this.sceneManager.setShowGrid(false);
+            this.sceneManager.setShowOccupiedVoxels(false);
+            this.sceneManager.setShowCollisionChecks(false);
+
+            console.log('🔲 Grid disabled');
             break;
           case 'setShowWorldGrid':
             // If grid doesn't exist yet, create it first
@@ -893,6 +909,30 @@ class PaDIPSApp {
   }
 
   /**
+   * Send state updates to parent (React Native/iframe parent)
+   */
+  private sendStateToParent(): void {
+    const state = {
+      type: 'stateUpdate',
+      fps: this.currentFps,
+      ballCount: this.ballSet.num,
+      generation: this.ballSet.generation,
+      isRunning: this.isRunning,
+      checks: this.physicsEngine.stats.numChecks,
+    };
+
+    // For iframe (Web)
+    if (window.parent !== window) {
+      window.parent.postMessage(JSON.stringify(state), '*');
+    }
+
+    // For React Native WebView
+    if ((window as any).ReactNativeWebView) {
+      (window as any).ReactNativeWebView.postMessage(JSON.stringify(state));
+    }
+  }
+
+  /**
    * Start simulation (Animation-Loop läuft bereits immer)
    */
   start(): void {
@@ -912,6 +952,9 @@ class PaDIPSApp {
     }
 
     console.log('▶ Simulation started (physics enabled)');
+
+    // Send state update to parent
+    this.sendStateToParent();
   }
 
   /**
@@ -932,6 +975,9 @@ class PaDIPSApp {
     }
 
     console.log('⏸ Simulation stopped (rendering continues for camera interaction)');
+
+    // Send state update to parent
+    this.sendStateToParent();
   }
 
   /**
@@ -990,6 +1036,9 @@ class PaDIPSApp {
     if (wasRunning) {
       console.log('▶ Auto-restarting simulation');
       this.start();
+    } else {
+      // Send state update even if not auto-starting
+      this.sendStateToParent();
     }
   }
 
@@ -1056,6 +1105,9 @@ class PaDIPSApp {
       this.currentFps = this.frameCount;
       this.frameCount = 0;
       this.lastFpsUpdate = currentTime;
+
+      // Send state update to parent (every second with FPS update)
+      this.sendStateToParent();
     }
 
     // Update stats display

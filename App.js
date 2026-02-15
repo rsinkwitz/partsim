@@ -38,8 +38,44 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
   const [showOccupiedVoxels, setShowOccupiedVoxels] = useState(false);
   const [showCollisionChecks, setShowCollisionChecks] = useState(false);
 
+  // Stats from WebView
+  const [fps, setFps] = useState(0);
+  const [actualBallCount, setActualBallCount] = useState(30);
+  const [generation, setGeneration] = useState(0);
+  const [isRunning, setIsRunning] = useState(true);
+  const [checks, setChecks] = useState(0);
+
   useEffect(() => {
     loadWebApp();
+  }, []);
+
+  // Handle messages from WebView/iframe
+  useEffect(() => {
+    if (Platform.OS === "web") {
+      // Listen for messages from iframe
+      const handleMessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'stateUpdate') {
+            setFps(data.fps || 0);
+            setActualBallCount(data.ballCount || 30);
+            setGeneration(data.generation || 0);
+            setIsRunning(data.isRunning !== undefined ? data.isRunning : true);
+            setChecks(data.checks || 0);
+
+            // Update slider wenn sich die Ball-Anzahl geändert hat (z.B. durch Keyboard)
+            if (data.ballCount !== undefined) {
+              setBallCount(data.ballCount);
+            }
+          }
+        } catch (e) {
+          // Ignore non-JSON messages
+        }
+      };
+
+      window.addEventListener('message', handleMessage);
+      return () => window.removeEventListener('message', handleMessage);
+    }
   }, []);
 
   // Hilfsfunktion um Aktionen an die WebView zu senden
@@ -180,10 +216,18 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           {/* Main Controls */}
           <View style={styles.section}>
             <View style={styles.buttonRow}>
-              <TouchableOpacity style={styles.startButton} onPress={() => sendToIframe('start')}>
+              <TouchableOpacity
+                style={[styles.startButton, isRunning && styles.buttonDisabled]}
+                onPress={() => sendToIframe('start')}
+                disabled={isRunning}
+              >
                 <Text style={styles.buttonText}>▶ Start</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.stopButton} onPress={() => sendToIframe('stop')}>
+              <TouchableOpacity
+                style={[styles.stopButton, !isRunning && styles.buttonDisabled]}
+                onPress={() => sendToIframe('stop')}
+                disabled={!isRunning}
+              >
                 <Text style={styles.buttonText}>⏸ Stop</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.newButton} onPress={() => sendToIframe('new')}>
@@ -195,9 +239,10 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           {/* Stats */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>📊 Stats</Text>
-            <Text style={styles.statText}>FPS: --</Text>
-            <Text style={styles.statText}>Balls: {ballCount}</Text>
-            <Text style={styles.statText}>Generation: 0</Text>
+            <Text style={styles.statText}>FPS: {fps}</Text>
+            <Text style={styles.statText}>Balls: {actualBallCount}</Text>
+            <Text style={styles.statText}>Generation: {generation}</Text>
+            <Text style={styles.statText}>Checks: {checks}</Text>
           </View>
 
           {/* Balls Section */}
@@ -218,6 +263,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
                 minimumTrackTintColor="#4CAF50"
                 maximumTrackTintColor="#ddd"
               />
+              <Text style={styles.smallText}>Click "New" to apply changes</Text>
             </View>
           </View>
 
@@ -251,7 +297,13 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
                 value={gridEnabled}
                 onValueChange={(value) => {
                   setGridEnabled(value);
-                  sendToIframe('setGridEnabled', value);
+                  if (value) {
+                    // Aktivieren: Apply Grid mit aktuellen Segments
+                    sendToIframe('applyGrid', { segments: gridSegments });
+                  } else {
+                    // Deaktivieren: Grid ausschalten
+                    sendToIframe('disableGrid');
+                  }
                 }}
                 trackColor={{ false: "#ddd", true: "#4CAF50" }}
               />
@@ -268,17 +320,15 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
                     step={1}
                     value={gridSegments}
                     onValueChange={setGridSegments}
+                    onSlidingComplete={(value) => {
+                      // Direkt anwenden beim Loslassen
+                      sendToIframe('applyGrid', { segments: value });
+                    }}
                     minimumTrackTintColor="#4CAF50"
                     maximumTrackTintColor="#ddd"
                   />
                 </View>
 
-                <TouchableOpacity
-                  style={styles.applyButton}
-                  onPress={() => sendToIframe('applyGrid', { segments: gridSegments })}
-                >
-                  <Text style={styles.buttonText}>⚡ Apply Grid</Text>
-                </TouchableOpacity>
 
                 <View style={styles.toggleContainer}>
                   <Text style={styles.smallLabel}>Show World Grid</Text>
@@ -665,6 +715,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "bold",
     textAlign: "center",
+  },
+  buttonDisabled: {
+    backgroundColor: "#ccc",
+    opacity: 0.6,
   },
   webview: {
     flex: 1,

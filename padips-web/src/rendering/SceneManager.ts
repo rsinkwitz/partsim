@@ -808,6 +808,39 @@ export class SceneManager {
   }
 
   /**
+   * Clear grid visualization completely
+   */
+  clearGridVisualization(): void {
+    if (this.gridLines) {
+      this.scene.remove(this.gridLines);
+      this.gridLines.geometry.dispose();
+      (this.gridLines.material as THREE.Material).dispose();
+      this.gridLines = null;
+      console.log('🔲 Grid visualization cleared');
+    }
+
+    // Also clear occupied voxels (Group of LineSegments)
+    if (this.occupiedVoxels) {
+      this.occupiedVoxels.traverse((child) => {
+        if (child instanceof THREE.LineSegments) {
+          child.geometry.dispose();
+          (child.material as THREE.Material).dispose();
+        }
+      });
+      this.scene.remove(this.occupiedVoxels);
+      this.occupiedVoxels = null;
+    }
+
+    // Clear collision checks
+    if (this.collisionChecksLines) {
+      this.scene.remove(this.collisionChecksLines);
+      this.collisionChecksLines.geometry.dispose();
+      (this.collisionChecksLines.material as THREE.Material).dispose();
+      this.collisionChecksLines = null;
+    }
+  }
+
+  /**
    * Update occupied voxels visualization
    * Shows voxel edges as colored lines (ball color, or blended if multiple balls)
    */
