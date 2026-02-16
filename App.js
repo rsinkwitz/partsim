@@ -144,6 +144,12 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
               setCubeDepth(data.cubeDepth);
               console.log('📦 UI: Cube depth updated to:', data.cubeDepth);
             }
+          } else if (data.type === 'stereoModeUpdate') {
+            // Update stereo mode (e.g., via keyboard shortcut [3] or [A])
+            if (data.stereoMode !== undefined) {
+              setStereoMode(data.stereoMode);
+              console.log('🕶️ UI: Stereo mode updated to:', data.stereoMode);
+            }
           }
         } catch (e) {
           // Ignore non-JSON messages
@@ -299,10 +305,19 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
 
   // Auf Web verwenden wir einen iframe statt WebView für bessere Kompatibilität
   if (Platform.OS === "web") {
+    // Dynamische Styles für Top/Bottom Stereo
+    const isTopBottomStereo = stereoMode === 'topbottom';
+    const containerStyle = isTopBottomStereo
+      ? [styles.containerWeb, styles.containerTopBottomStereo]
+      : styles.containerWeb;
+    const sidebarStyle = isTopBottomStereo
+      ? [styles.sidebarWeb, styles.sidebarTopBottomStereo]
+      : styles.sidebarWeb;
+
     return (
-      <View style={styles.containerWeb}>
+      <View style={containerStyle}>
         {/* PaDIPS Control Panel - Links wie im Original */}
-        <ScrollView style={styles.sidebarWeb} contentContainerStyle={styles.sidebarContent}>
+        <ScrollView style={sidebarStyle} contentContainerStyle={styles.sidebarContent}>
           <Text style={styles.title}>🎱 PaDIPS</Text>
 
           {/* Main Controls */}
@@ -779,6 +794,11 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           }}
           title="PaDIPS Simulation"
         />
+
+        {/* Schwarzer Bereich für untere Hälfte im Top/Bottom Stereo */}
+        {isTopBottomStereo && (
+          <View style={styles.bottomHalfBlack} />
+        )}
       </View>
     );
   }
@@ -951,6 +971,9 @@ const styles = StyleSheet.create({
     flexDirection: "row", // Sidebar links, Canvas rechts
     backgroundColor: "#fff",
   },
+  containerTopBottomStereo: {
+    height: "50vh", // Nur obere Hälfte im Top/Bottom Stereo
+  },
   sidebarWeb: {
     width: 280,
     minWidth: 280,
@@ -963,6 +986,20 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 2, height: 0 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+  },
+  sidebarTopBottomStereo: {
+    maxHeight: "50vh", // Sidebar nur in oberer Hälfte
+    overflowY: "auto", // Scrollbar für Sidebar
+  },
+  bottomHalfBlack: {
+    position: "absolute",
+    left: 0,
+    bottom: 0,
+    width: 280, // Gleiche Breite wie Sidebar
+    height: "50vh", // Untere Hälfte
+    backgroundColor: "#000", // Schwarz
+    zIndex: 9999, // Über allem
+    pointerEvents: "none", // Kein Blocking von Interaktionen
   },
   sidebarContent: {
     padding: 20,

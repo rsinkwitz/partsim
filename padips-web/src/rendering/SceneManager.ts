@@ -258,11 +258,12 @@ export class SceneManager {
     geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
     geometry.computeVertexNormals();
 
+    // BackSide only: Von innen sichtbar (opak), von außen unsichtbar (100% transparent)
     const material = new THREE.MeshPhongMaterial({
       color: wall.color,
-      side: THREE.DoubleSide,
+      side: THREE.BackSide, // Nur Innenseite rendern
       transparent: true,
-      opacity: 0.3,
+      opacity: 0.3, // 30% Opacity von innen
     });
 
     const mesh = new THREE.Mesh(geometry, material);

@@ -730,7 +730,7 @@ class PaDIPSApp {
 
     this.sceneManager.setStereoMode(newMode);
 
-    // Update UI radio button
+    // Update HTML UI radio button
     const radio = document.querySelector<HTMLInputElement>(`input[name="stereoMode"][value="${newMode}"]`);
     if (radio) {
       radio.checked = true;
@@ -742,6 +742,9 @@ class PaDIPSApp {
     } else {
       document.body.classList.remove('stereo-topbottom');
     }
+
+    // Send state update to parent (React Native UI)
+    this.sendStereoModeUpdate(newMode);
   }
 
   /**
@@ -1095,6 +1098,28 @@ class PaDIPSApp {
     };
 
     console.log('📏 Sending ball parameter update:', update);
+
+    // For iframe (Web)
+    if (window.parent !== window) {
+      window.parent.postMessage(JSON.stringify(update), '*');
+    }
+
+    // For React Native WebView
+    if ((window as any).ReactNativeWebView) {
+      (window as any).ReactNativeWebView.postMessage(JSON.stringify(update));
+    }
+  }
+
+  /**
+   * Send stereo mode update to parent (React Native UI)
+   */
+  private sendStereoModeUpdate(mode: StereoMode): void {
+    const update = {
+      type: 'stereoModeUpdate',
+      stereoMode: mode,
+    };
+
+    console.log('🕶️ Sending stereo mode update:', update);
 
     // For iframe (Web)
     if (window.parent !== window) {
