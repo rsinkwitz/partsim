@@ -12,7 +12,7 @@ export class GlobalParams {
   elasticity: number;
 
   constructor(
-    acceleration: THREE.Vector3 = new THREE.Vector3(0, 0, -ACC_G),
+    acceleration: THREE.Vector3 = new THREE.Vector3(0, 0, 0), // ZERO gravity initial
     elasticity = DEFAULT_ELASTICITY
   ) {
     this.acceleration = acceleration.clone();

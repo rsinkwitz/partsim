@@ -635,11 +635,18 @@ export class SceneManager {
 
   /**
    * Set auto-rotation mode (gentle rotation about vertical Z-axis)
+   * @param enabled - Enable/disable auto-rotation
+   * @param speed - Rotation speed multiplier (1=normal, 2=2x, 3=3x, 4=4x)
    */
-  setAutoRotation(enabled: boolean): void {
+  setAutoRotation(enabled: boolean, speed: number = 1): void {
     this.controls.autoRotate = enabled;
-    this.controls.autoRotateSpeed = 1.0; // CCW rotation speed (degrees per second at 60 fps)
-    console.log('🔄 Auto-rotation:', enabled ? 'ON' : 'OFF');
+    this.controls.autoRotateSpeed = speed * 1.0; // CCW rotation speed (degrees per second at 60 fps)
+
+    if (enabled) {
+      console.log(`🔄 Auto-rotation: ON (${speed}x speed)`);
+    } else {
+      console.log('🔄 Auto-rotation: OFF');
+    }
   }
 
   /**

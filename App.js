@@ -37,7 +37,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
   const [elasticity, setElasticity] = useState(90); // 0-100
 
   // UI State - Physics
-  const [gravityPreset, setGravityPreset] = useState('DOWN');
+  const [gravityPreset, setGravityPreset] = useState('ZERO');
   const [gravityMagnitude, setGravityMagnitude] = useState(9.81);
   const [globalElasticity, setGlobalElasticity] = useState(90); // 0-100
 
@@ -84,22 +84,49 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           const data = JSON.parse(event.data);
           if (data.type === 'stateUpdate') {
             setFps(data.fps || 0);
-            setActualBallCount(data.ballCount || 30);
+            const newBallCount = data.ballCount || 30;
             setGeneration(data.generation || 0);
             setIsRunning(data.isRunning !== undefined ? data.isRunning : true);
             setChecks(data.checks || 0);
 
-            // Update slider wenn sich die Ball-Anzahl geändert hat (z.B. durch Keyboard)
-            if (data.ballCount !== undefined) {
-              setBallCount(data.ballCount);
-            }
+            // Update slider NUR wenn sich die tatsächliche Ball-Anzahl geändert hat
+            // (z.B. durch Keyboard +/- oder "New" button - aber NACH der Generierung!)
+            // NICHT bei kurzen Zwischenwerten während reset()
+            setActualBallCount(prevActual => {
+              // Nur updaten wenn es eine signifikante Änderung ist
+              // UND nicht nur ein kurzer Dip (z.B. 30 während reset)
+              if (newBallCount !== prevActual) {
+                // Prüfe ob die neue Anzahl mit dem Slider-Wert übereinstimmt
+                // Wenn ja, dann ist das die finale Anzahl nach "New"
+                // Wenn nein, dann ist es wahrscheinlich eine +/- Key Änderung
+                if (newBallCount === ballCount || Math.abs(newBallCount - prevActual) >= 50) {
+                  // Entweder: Finale Anzahl nach "New" (newBallCount === ballCount)
+                  // Oder: Große Änderung durch +/- Keys (±50 Bälle)
+                  setBallCount(newBallCount);
+                }
+                // Sonst: Ignoriere kleine/kurze Änderungen (z.B. während reset)
+              }
+              return newBallCount;
+            });
 
-            // Update ball parameters if they changed (e.g., due to grid constraints)
+            // Update ball parameters NUR bei Grid-Constraints
+            // (wenn WebView die Parameter aktiv verkleinert hat)
+            // Normale Slider-Bewegungen werden NICHT überschrieben
             if (data.minRadius !== undefined) {
-              setMinRadius(Math.round(data.minRadius * 100)); // Convert m to cm (slider value)
+              const newMinRadius = Math.round(data.minRadius * 100);
+              // Nur updaten wenn explizit kleiner (Grid-Constraint oder max<min Korrektur)
+              if (newMinRadius < minRadius) {
+                console.log('📏 Min radius updated:', minRadius, '→', newMinRadius);
+                setMinRadius(newMinRadius);
+              }
             }
             if (data.maxRadius !== undefined) {
-              setMaxRadius(Math.round(data.maxRadius * 100)); // Convert m to cm (slider value)
+              const newMaxRadius = Math.round(data.maxRadius * 100);
+              // Nur updaten wenn explizit kleiner (Grid-Constraint)
+              if (newMaxRadius < maxRadius) {
+                console.log('📏 Max radius updated:', maxRadius, '→', newMaxRadius);
+                setMaxRadius(newMaxRadius);
+              }
             }
 
             // Update draw mode if changed (e.g., via keyboard shortcut [W])
@@ -295,7 +322,30 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
               >
                 <Text style={styles.buttonText}>⏸ Stop</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.newButton} onPress={() => sendToIframe('new')}>
+              <TouchableOpacity
+                style={styles.newButton}
+                onPress={() => {
+                  // Validate and correct parameters locally first
+                  let finalMinRadius = minRadius;
+                  let finalMaxRadius = maxRadius;
+
+                  // If max < min, adjust min to max (same logic as WebView)
+                  if (finalMaxRadius < finalMinRadius) {
+                    console.log('📏 Correcting min to match max locally:', finalMinRadius, '→', finalMaxRadius);
+                    finalMinRadius = finalMaxRadius;
+                    setMinRadius(finalMinRadius); // Update UI immediately
+                  }
+
+                  // Sende alle Ball-Parameter VOR dem Reset
+                  sendToIframe('setBallCount', ballCount);
+                  sendToIframe('setMinRadius', finalMinRadius / 100); // Convert cm to m
+                  sendToIframe('setMaxRadius', finalMaxRadius / 100);
+                  sendToIframe('setMaxVelocity', maxVelocity);
+                  sendToIframe('setElasticity', elasticity / 100);
+                  // Dann Reset mit neuen Parametern
+                  sendToIframe('new');
+                }}
+              >
                 <Text style={styles.buttonText}>✨ New</Text>
               </TouchableOpacity>
             </View>
@@ -334,7 +384,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
               <Slider
                 style={styles.slider}
                 minimumValue={2}
-                maximumValue={20}
+                maximumValue={30}
                 step={1}
                 value={minRadius}
                 onValueChange={setMinRadius}
@@ -418,6 +468,18 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
                 trackColor={{ false: "#ddd", true: "#4CAF50" }}
               />
             </View>
+
+            <View style={styles.toggleContainer}>
+              <Text style={styles.label}>Show Collision Checks</Text>
+              <Switch
+                value={showCollisionChecks}
+                onValueChange={(value) => {
+                  setShowCollisionChecks(value);
+                  sendToIframe('setShowCollisionChecks', value);
+                }}
+                trackColor={{ false: "#ddd", true: "#4CAF50" }}
+              />
+            </View>
           </View>
 
           {/* Grid System */}
@@ -481,18 +543,6 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
                     onValueChange={(value) => {
                       setShowOccupiedVoxels(value);
                       sendToIframe('setShowOccupiedVoxels', value);
-                    }}
-                    trackColor={{ false: "#ddd", true: "#4CAF50" }}
-                  />
-                </View>
-
-                <View style={styles.toggleContainer}>
-                  <Text style={styles.smallLabel}>Show Collision Checks</Text>
-                  <Switch
-                    value={showCollisionChecks}
-                    onValueChange={(value) => {
-                      setShowCollisionChecks(value);
-                      sendToIframe('setShowCollisionChecks', value);
                     }}
                     trackColor={{ false: "#ddd", true: "#4CAF50" }}
                   />

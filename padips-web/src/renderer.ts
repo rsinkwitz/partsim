@@ -26,13 +26,15 @@ class PaDIPSApp {
   private frameCount: number = 0;
   private lastFpsUpdate: number = 0;
   private currentFps: number = 0;
-  private isTurning: boolean = false; // Auto-rotation mode
+  private turnSpeed: number = 0; // Auto-rotation speed: 0=off, 1=1x, 2=2x, 3=3x, 4=4x
 
-  // Visualization state (for React Native controls without HTML UI)
+  // Visualization state (persistent across resets)
   private visualizationState = {
+    gridEnabled: false,
+    gridSegments: new THREE.Vector3(8, 8, 8),
+    showWorldGrid: false,
     showOccupiedVoxels: false,
     showCollisionChecks: false,
-    gridSegments: new THREE.Vector3(8, 8, 8),
   };
 
   // UI state
@@ -149,7 +151,8 @@ class PaDIPSApp {
             const segments = data.params?.segments || 8;
             const gridSegmentsVec = new THREE.Vector3(segments, segments, segments);
 
-            // Store in state
+            // Store in state (persistent across resets)
+            this.visualizationState.gridEnabled = true;
             this.visualizationState.gridSegments = gridSegmentsVec;
 
             // Reinitialize physics engine with grid
@@ -160,6 +163,12 @@ class PaDIPSApp {
             );
             this.physicsEngine.setGridSegments(gridSegmentsVec);
             this.physicsEngine.setGridEnabled(true);
+
+            // Restore collision checks tracking if it was enabled
+            if (this.visualizationState.showCollisionChecks) {
+              this.physicsEngine.setTrackCollisionChecks(true);
+              console.log('🔲 Collision checks tracking restored after grid apply');
+            }
 
             // Create grid visualization
             const CBR = 1.518;
@@ -174,21 +183,25 @@ class PaDIPSApp {
             break;
           case 'disableGrid':
             // Disable grid system
+            this.visualizationState.gridEnabled = false;
             this.physicsEngine.setGridEnabled(false);
 
             // Clear grid visualization
             this.sceneManager.clearGridVisualization();
 
-            // Reset visualizations
+            // Reset visualizations in state
+            this.visualizationState.showWorldGrid = false;
             this.visualizationState.showOccupiedVoxels = false;
-            this.visualizationState.showCollisionChecks = false;
+            // Note: showCollisionChecks is now independent of grid
             this.sceneManager.setShowGrid(false);
             this.sceneManager.setShowOccupiedVoxels(false);
-            this.sceneManager.setShowCollisionChecks(false);
 
             console.log('🔲 Grid disabled');
             break;
           case 'setShowWorldGrid':
+            // Store in state
+            this.visualizationState.showWorldGrid = data.params;
+
             // If grid doesn't exist yet, create it first
             if (data.params && !this.sceneManager.hasGridVisualization()) {
               const CBR = 1.518;
@@ -653,14 +666,16 @@ class PaDIPSApp {
           break;
 
         case 't':
-          // Toggle turn mode (auto-rotation)
-          this.isTurning = !this.isTurning;
-          if (this.isTurning) {
-            this.sceneManager.setAutoRotation(true);
-          } else {
+          // Cycle turn mode through 5 speeds: 0x, 1x, 2x, 3x, 4x
+          this.turnSpeed = (this.turnSpeed + 1) % 5; // 0→1→2→3→4→0
+
+          if (this.turnSpeed === 0) {
             this.sceneManager.setAutoRotation(false);
+            console.log('⌨️ [T] Turn mode: OFF (0x)');
+          } else {
+            this.sceneManager.setAutoRotation(true, this.turnSpeed);
+            console.log(`⌨️ [T] Turn mode: ${this.turnSpeed}x speed`);
           }
-          console.log('⌨️ [T] Turn mode:', this.isTurning ? 'ON' : 'OFF');
           break;
 
         case 'g':
@@ -696,7 +711,7 @@ class PaDIPSApp {
     console.log('  [G] Toggle Gravity (Down ↔ Zero)');
     console.log('  [3] Top-Bottom 3D stereo (repeat=off)');
     console.log('  [A] Anaglyph stereo (repeat=off)');
-    console.log('  [T] Turn mode on/off');
+    console.log('  [T] Turn speed (0x→1x→2x→3x→4x→0x)');
     console.log('  [W] Wireframe (repeat=shaded)');
     console.log('  [P] Points (repeat=shaded)');
     console.log('  [+/-] or [K/J] Add/Remove 50 balls (vi: K=more, J=less)');
@@ -787,17 +802,27 @@ class PaDIPSApp {
     const showWorldGrid = (document.getElementById('showWorldGrid') as HTMLInputElement).checked;
     const showOccupiedVoxels = (document.getElementById('showOccupiedVoxels') as HTMLInputElement).checked;
 
+    // Store in visualizationState for persistence
+    this.visualizationState.gridEnabled = gridEnabled;
+    this.visualizationState.gridSegments = new THREE.Vector3(gridSegmentsValue, gridSegmentsValue, gridSegmentsValue);
+    this.visualizationState.showWorldGrid = showWorldGrid;
+    this.visualizationState.showOccupiedVoxels = showOccupiedVoxels;
+
     // Calculate maximum allowed ball radius for grid
     const CBR = 1.518; // Cube radius
     const cellSize = (2 * CBR) / gridSegmentsValue;
     const maxAllowedRadius = cellSize / 2;
 
-    // Adjust ball parameters if needed
+    // Track if we need to send parameter updates to UI
+    let parametersAdjusted = false;
+
+    // Adjust ball parameters if needed (Grid constraints)
     if (this.ballParams.maxRadius > maxAllowedRadius) {
       console.warn('⚠️ Max ball radius too large for grid, adjusting...');
       this.ballParams.maxRadius = maxAllowedRadius * 0.9; // 90% of max to be safe
+      parametersAdjusted = true;
 
-      // Update UI
+      // Update HTML UI if it exists
       const maxRadiusSlider = document.getElementById('maxRadius') as HTMLInputElement;
       const maxRadiusValue = document.getElementById('maxRadiusValue');
       if (maxRadiusSlider && maxRadiusValue) {
@@ -809,8 +834,9 @@ class PaDIPSApp {
     if (this.ballParams.minRadius > maxAllowedRadius) {
       console.warn('⚠️ Min ball radius too large for grid, adjusting...');
       this.ballParams.minRadius = maxAllowedRadius * 0.5;
+      parametersAdjusted = true;
 
-      // Update UI
+      // Update HTML UI if it exists
       const minRadiusSlider = document.getElementById('minRadius') as HTMLInputElement;
       const minRadiusValue = document.getElementById('minRadiusValue');
       if (minRadiusSlider && minRadiusValue) {
@@ -862,11 +888,11 @@ class PaDIPSApp {
       console.log('🔲 Grid system disabled');
     }
 
-    // Re-enable collision check tracking if it was enabled
-    const showCollisionChecks = (document.getElementById('showCollisionChecks') as HTMLInputElement)?.checked;
-    if (showCollisionChecks) {
+    // Re-enable collision check tracking from state (persistent!)
+    if (this.visualizationState.showCollisionChecks) {
       this.physicsEngine.setTrackCollisionChecks(true);
-      console.log('🔲 Collision check tracking re-enabled');
+      this.sceneManager.setShowCollisionChecks(true);
+      console.log('🔲 Collision check tracking restored from state');
     }
 
     // Reinitialize scene
@@ -880,8 +906,13 @@ class PaDIPSApp {
     if (wasRunning) {
       this.start();
     } else {
-      // Send state update to inform parent about ball size adjustments
+      // Send state update
       this.sendStateToParent();
+    }
+
+    // Send ball parameter updates if they were constrained by grid
+    if (parametersAdjusted) {
+      this.sendBallParameterUpdate();
     }
 
     console.log('🔲 Grid application complete');
@@ -1035,9 +1066,8 @@ class PaDIPSApp {
       generation: this.ballSet.generation,
       isRunning: this.isRunning,
       checks: this.physicsEngine.stats.numChecks,
-      // Ball parameters (for UI feedback)
-      minRadius: this.ballParams.minRadius,
-      maxRadius: this.ballParams.maxRadius,
+      // NOTE: minRadius/maxRadius are NOT included in regular updates
+      // They are only sent when Grid constraints force a change
       // Rendering & Physics (for keyboard shortcut feedback)
       drawMode: this.sceneManager.getDrawMode(),
       gravityPreset: gravityPreset,
@@ -1051,6 +1081,29 @@ class PaDIPSApp {
     // For React Native WebView
     if ((window as any).ReactNativeWebView) {
       (window as any).ReactNativeWebView.postMessage(JSON.stringify(state));
+    }
+  }
+
+  /**
+   * Send ball parameter updates (only when constrained by grid)
+   */
+  private sendBallParameterUpdate(): void {
+    const update = {
+      type: 'stateUpdate',
+      minRadius: this.ballParams.minRadius,
+      maxRadius: this.ballParams.maxRadius,
+    };
+
+    console.log('📏 Sending ball parameter update:', update);
+
+    // For iframe (Web)
+    if (window.parent !== window) {
+      window.parent.postMessage(JSON.stringify(update), '*');
+    }
+
+    // For React Native WebView
+    if ((window as any).ReactNativeWebView) {
+      (window as any).ReactNativeWebView.postMessage(JSON.stringify(update));
     }
   }
 
@@ -1110,13 +1163,18 @@ class PaDIPSApp {
     const wasRunning = this.isRunning;
     this.stop();
 
+    // Validate ball parameters: minRadius must be <= maxRadius
+    let parametersAdjusted = false;
+    if (this.ballParams.maxRadius < this.ballParams.minRadius) {
+      console.warn('⚠️ Max radius < Min radius, adjusting min to match max');
+      this.ballParams.minRadius = this.ballParams.maxRadius;
+      parametersAdjusted = true;
+    }
+
     console.log('🎱 Generating', this.ballParams.count, 'balls with params:', this.ballParams);
     // Generate new balls with current parameters
     this.ballSet = generateBalls(this.ballParams);
     console.log('✅ Generated', this.ballSet.num, 'balls');
-
-    // Check if grid is enabled
-    const gridEnabled = (document.getElementById('gridEnabled') as HTMLInputElement)?.checked;
 
     // Reinitialize physics engine
     this.physicsEngine = new PhysicsEngine(
@@ -1125,20 +1183,33 @@ class PaDIPSApp {
       this.global
     );
 
-    // Reinitialize grid if it was enabled
-    if (gridEnabled) {
-      const gridSegmentsValue = parseInt((document.getElementById('gridSegments') as HTMLInputElement).value);
-      const segments = new THREE.Vector3(gridSegmentsValue, gridSegmentsValue, gridSegmentsValue);
-      this.physicsEngine.setGridSegments(segments);
+    // Restore grid configuration from state (persistent across resets)
+    if (this.visualizationState.gridEnabled) {
+      this.physicsEngine.setGridSegments(this.visualizationState.gridSegments);
       this.physicsEngine.setGridEnabled(true);
-      console.log('🔲 Grid reinitialized for new ball set');
+      console.log('🔲 Grid restored with segments:', this.visualizationState.gridSegments);
+
+      // Recreate grid visualization
+      const CBR = 1.518;
+      const origin = new THREE.Vector3(-CBR, -CBR, -CBR);
+      const extent = new THREE.Vector3(CBR, CBR, CBR);
+      this.sceneManager.createGridVisualization(
+        this.visualizationState.gridSegments,
+        origin,
+        extent
+      );
+
+      // Restore grid visualization states
+      this.sceneManager.setShowGrid(this.visualizationState.showWorldGrid);
+      this.sceneManager.setShowOccupiedVoxels(this.visualizationState.showOccupiedVoxels);
+      console.log('🔲 Grid visualizations restored');
     }
 
-    // Re-enable collision check tracking if it was enabled
-    const showCollisionChecks = (document.getElementById('showCollisionChecks') as HTMLInputElement)?.checked;
-    if (showCollisionChecks) {
+    // Restore collision check tracking from state
+    if (this.visualizationState.showCollisionChecks) {
       this.physicsEngine.setTrackCollisionChecks(true);
-      console.log('🔲 Collision check tracking re-enabled');
+      this.sceneManager.setShowCollisionChecks(true);
+      console.log('🔲 Collision check tracking restored');
     }
 
     // Reinitialize scene (clears old visualizations)
@@ -1161,6 +1232,11 @@ class PaDIPSApp {
     } else {
       // Send state update even if not auto-starting
       this.sendStateToParent();
+    }
+
+    // Send ball parameter update if they were adjusted (max < min correction)
+    if (parametersAdjusted) {
+      this.sendBallParameterUpdate();
     }
   }
 
