@@ -96,15 +96,51 @@ class PaDIPSApp {
           case 'reset':
             this.reset();
             break;
+
+          // Ball parameters
           case 'setBallCount':
             this.ballParams.count = data.params;
             console.log('🎱 Ball count will be:', data.params, '(click New to apply)');
-            // DON'T reset immediately - only on "new" button
             break;
+          case 'setMinRadius':
+            this.ballParams.minRadius = data.params;
+            console.log('🎱 Min radius will be:', data.params.toFixed(2), 'm');
+            break;
+          case 'setMaxRadius':
+            this.ballParams.maxRadius = data.params;
+            console.log('🎱 Max radius will be:', data.params.toFixed(2), 'm');
+            break;
+          case 'setMaxVelocity':
+            this.ballParams.maxVelocity = data.params;
+            console.log('🎱 Max velocity will be:', data.params, 'm/s');
+            break;
+          case 'setElasticity':
+            this.ballParams.elasticity = data.params;
+            console.log('🎱 Ball elasticity will be:', data.params.toFixed(2));
+            break;
+
+          // Physics
+          case 'setGravityPreset':
+            this.global.setGravityPreset(data.params.preset, data.params.magnitude);
+            console.log('🌍 Gravity preset:', data.params.preset, 'magnitude:', data.params.magnitude, 'm/s²');
+            this.sendStateToParent();
+            break;
+          case 'setGlobalElasticity':
+            this.global.elasticity = data.params;
+            console.log('⚡ Global elasticity:', data.params.toFixed(2));
+            break;
+
+          // Simulation
           case 'setCalcFactor':
             this.physicsEngine.setCalcFactor(data.params);
             console.log('⚙️ Calc factor set to:', data.params);
             break;
+          case 'setCollisionsEnabled':
+            this.physicsEngine.setCollisionsEnabled(data.params);
+            console.log('⚙️ Collisions:', data.params ? 'ON' : 'OFF');
+            break;
+
+          // Grid System
           case 'setGridEnabled':
             // Will be applied on next applyGrid
             console.log('🔲 Grid enabled:', data.params);
@@ -174,6 +210,40 @@ class PaDIPSApp {
             this.physicsEngine.setTrackCollisionChecks(data.params);
             console.log('🔲 Show Collision Checks:', data.params);
             break;
+
+          // Rendering
+          case 'setDrawMode':
+            this.updateDrawMode(data.params as DrawMode);
+            console.log('🎨 Draw mode set to:', data.params);
+            break;
+          case 'setWireframeSegments':
+            this.sceneManager.setWireframeSegments(data.params);
+            if (this.sceneManager.getDrawMode() === DrawMode.WIREFRAME) {
+              this.sceneManager.recreateBallMeshes(this.ballSet);
+            }
+            console.log('🔲 Wireframe segments:', data.params);
+            break;
+
+          // 3D Stereo
+          case 'setStereoMode':
+            this.sceneManager.setStereoMode(data.params as StereoMode);
+            console.log('🕶️ Stereo mode set to:', data.params);
+            // Update UI layout for Top-Bottom mode
+            if (data.params === 'topbottom') {
+              document.body.classList.add('stereo-topbottom');
+            } else {
+              document.body.classList.remove('stereo-topbottom');
+            }
+            break;
+          case 'setEyeSeparation':
+            this.sceneManager.setEyeSeparation(data.params);
+            console.log('👁️ Eye separation:', data.params.toFixed(3), 'm');
+            break;
+          case 'setCubeDepth':
+            this.sceneManager.setCubeDepth(data.params);
+            console.log('📦 Cube depth:', data.params.toFixed(1), 'm');
+            break;
+
           default:
             console.warn('Unknown action:', data.action);
         }
@@ -673,6 +743,9 @@ class PaDIPSApp {
     if (select) {
       select.value = newMode;
     }
+
+    // Send state update to parent
+    this.sendStateToParent();
   }
 
   /**
@@ -806,6 +879,9 @@ class PaDIPSApp {
     // Restart if was running
     if (wasRunning) {
       this.start();
+    } else {
+      // Send state update to inform parent about ball size adjustments
+      this.sendStateToParent();
     }
 
     console.log('🔲 Grid application complete');
@@ -855,6 +931,8 @@ class PaDIPSApp {
       const newPreset = isZero ? 'DOWN' : 'ZERO';
       this.global.setGravityPreset(newPreset, 9.81);
       console.log('🌍 Gravity toggled to:', newPreset, '(no HTML UI)');
+      // Send state update to parent
+      this.sendStateToParent();
       return;
     }
 
@@ -866,6 +944,8 @@ class PaDIPSApp {
     selectEl.value = newPreset;
 
     console.log('🌍 Gravity toggled to:', newPreset, 'with magnitude:', magnitude);
+    // Send state update to parent
+    this.sendStateToParent();
   }
 
   /**
@@ -912,6 +992,20 @@ class PaDIPSApp {
    * Send state updates to parent (React Native/iframe parent)
    */
   private sendStateToParent(): void {
+    // Get current gravity preset
+    const currentAccel = this.global.acceleration;
+    let gravityPreset = 'ZERO';
+    // Match the axis mapping from GlobalParams.setGravityPreset:
+    // DOWN: (0, 0, -mag), UP: (0, 0, +mag)
+    // LEFT: (-mag, 0, 0), RIGHT: (+mag, 0, 0)
+    // FRONT: (0, -mag, 0), REAR: (0, +mag, 0)
+    if (currentAccel.z < -0.1) gravityPreset = 'DOWN';
+    else if (currentAccel.z > 0.1) gravityPreset = 'UP';
+    else if (currentAccel.x < -0.1) gravityPreset = 'LEFT';
+    else if (currentAccel.x > 0.1) gravityPreset = 'RIGHT';
+    else if (currentAccel.y < -0.1) gravityPreset = 'FRONT';
+    else if (currentAccel.y > 0.1) gravityPreset = 'REAR';
+
     const state = {
       type: 'stateUpdate',
       fps: this.currentFps,
@@ -919,6 +1013,12 @@ class PaDIPSApp {
       generation: this.ballSet.generation,
       isRunning: this.isRunning,
       checks: this.physicsEngine.stats.numChecks,
+      // Ball parameters (for UI feedback)
+      minRadius: this.ballParams.minRadius,
+      maxRadius: this.ballParams.maxRadius,
+      // Rendering & Physics (for keyboard shortcut feedback)
+      drawMode: this.sceneManager.getDrawMode(),
+      gravityPreset: gravityPreset,
     };
 
     // For iframe (Web)
@@ -1055,6 +1155,9 @@ class PaDIPSApp {
     this.sceneManager.recreateBallMeshes(this.ballSet);
 
     console.log('✅ Draw mode updated, simulation continues');
+
+    // Send state update to parent
+    this.sendStateToParent();
   }
 
   /**

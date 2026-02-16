@@ -29,14 +29,35 @@ export default function App() {
 }
 
 function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setError, webViewRef }) {
-  // UI State
+  // UI State - Balls
   const [ballCount, setBallCount] = useState(30);
+  const [minRadius, setMinRadius] = useState(5); // in cm (stored as slider value)
+  const [maxRadius, setMaxRadius] = useState(15); // in cm (stored as slider value)
+  const [maxVelocity, setMaxVelocity] = useState(2.0);
+  const [elasticity, setElasticity] = useState(90); // 0-100
+
+  // UI State - Physics
+  const [gravityPreset, setGravityPreset] = useState('DOWN');
+  const [gravityMagnitude, setGravityMagnitude] = useState(9.81);
+  const [globalElasticity, setGlobalElasticity] = useState(90); // 0-100
+
+  // UI State - Simulation
   const [calcFactor, setCalcFactor] = useState(10);
+  const [collisionsEnabled, setCollisionsEnabled] = useState(true);
+
+  // UI State - Grid
   const [gridEnabled, setGridEnabled] = useState(false);
   const [gridSegments, setGridSegments] = useState(8);
   const [showWorldGrid, setShowWorldGrid] = useState(false);
   const [showOccupiedVoxels, setShowOccupiedVoxels] = useState(false);
   const [showCollisionChecks, setShowCollisionChecks] = useState(false);
+
+  // UI State - Rendering
+  const [drawMode, setDrawMode] = useState('LIGHTED');
+  const [wireframeSegments, setWireframeSegments] = useState(8);
+  const [stereoMode, setStereoMode] = useState('off');
+  const [eyeSeparation, setEyeSeparation] = useState(8.0); // in cm
+  const [cubeDepth, setCubeDepth] = useState(0);
 
   // Stats from WebView
   const [fps, setFps] = useState(0);
@@ -66,6 +87,24 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
             // Update slider wenn sich die Ball-Anzahl geändert hat (z.B. durch Keyboard)
             if (data.ballCount !== undefined) {
               setBallCount(data.ballCount);
+            }
+
+            // Update ball parameters if they changed (e.g., due to grid constraints)
+            if (data.minRadius !== undefined) {
+              setMinRadius(Math.round(data.minRadius * 100)); // Convert m to cm (slider value)
+            }
+            if (data.maxRadius !== undefined) {
+              setMaxRadius(Math.round(data.maxRadius * 100)); // Convert m to cm (slider value)
+            }
+
+            // Update draw mode if changed (e.g., via keyboard shortcut [W])
+            if (data.drawMode !== undefined) {
+              setDrawMode(data.drawMode);
+            }
+
+            // Update gravity preset if changed (e.g., via keyboard shortcut [G])
+            if (data.gravityPreset !== undefined) {
+              setGravityPreset(data.gravityPreset);
             }
           }
         } catch (e) {
@@ -248,6 +287,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           {/* Balls Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>🎱 Balls</Text>
+
             <View style={styles.sliderContainer}>
               <Text style={styles.label}>Number of Balls: {ballCount}</Text>
               <Slider
@@ -257,19 +297,73 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
                 step={5}
                 value={ballCount}
                 onValueChange={setBallCount}
-                onSlidingComplete={(value) => {
-                  sendToIframe('setBallCount', value);
-                }}
                 minimumTrackTintColor="#4CAF50"
                 maximumTrackTintColor="#ddd"
               />
-              <Text style={styles.smallText}>Click "New" to apply changes</Text>
+              <Text style={styles.smallText}>Click "New" to apply</Text>
+            </View>
+
+            <View style={styles.sliderContainer}>
+              <Text style={styles.label}>Min Radius: {(minRadius / 100).toFixed(2)} m</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={2}
+                maximumValue={20}
+                step={1}
+                value={minRadius}
+                onValueChange={setMinRadius}
+                minimumTrackTintColor="#4CAF50"
+                maximumTrackTintColor="#ddd"
+              />
+            </View>
+
+            <View style={styles.sliderContainer}>
+              <Text style={styles.label}>Max Radius: {(maxRadius / 100).toFixed(2)} m</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={2}
+                maximumValue={30}
+                step={1}
+                value={maxRadius}
+                onValueChange={setMaxRadius}
+                minimumTrackTintColor="#4CAF50"
+                maximumTrackTintColor="#ddd"
+              />
+            </View>
+
+            <View style={styles.sliderContainer}>
+              <Text style={styles.label}>Max Velocity: {maxVelocity.toFixed(1)} m/s</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={0.5}
+                maximumValue={10.0}
+                step={0.5}
+                value={maxVelocity}
+                onValueChange={setMaxVelocity}
+                minimumTrackTintColor="#4CAF50"
+                maximumTrackTintColor="#ddd"
+              />
+            </View>
+
+            <View style={styles.sliderContainer}>
+              <Text style={styles.label}>Elasticity: {(elasticity / 100).toFixed(2)}</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={0}
+                maximumValue={100}
+                step={5}
+                value={elasticity}
+                onValueChange={setElasticity}
+                minimumTrackTintColor="#4CAF50"
+                maximumTrackTintColor="#ddd"
+              />
             </View>
           </View>
 
           {/* Simulation Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>⚙️ Simulation</Text>
+
             <View style={styles.sliderContainer}>
               <Text style={styles.label}>Calc Factor: {calcFactor}</Text>
               <Slider
@@ -284,6 +378,18 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
                 }}
                 minimumTrackTintColor="#FF9800"
                 maximumTrackTintColor="#ddd"
+              />
+            </View>
+
+            <View style={styles.toggleContainer}>
+              <Text style={styles.label}>Collisions Enabled</Text>
+              <Switch
+                value={collisionsEnabled}
+                onValueChange={(value) => {
+                  setCollisionsEnabled(value);
+                  sendToIframe('setCollisionsEnabled', value);
+                }}
+                trackColor={{ false: "#ddd", true: "#4CAF50" }}
               />
             </View>
           </View>
@@ -372,22 +478,198 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           {/* Physics Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>🌍 Physics</Text>
-            <Text style={styles.label}>Gravity: Down</Text>
-            <Text style={styles.smallText}>Press [G] to toggle</Text>
+
+            <View style={styles.pickerContainer}>
+              <Text style={styles.label}>Gravity Preset</Text>
+              <select
+                value={gravityPreset}
+                onChange={(e) => {
+                  const preset = e.target.value;
+                  setGravityPreset(preset);
+                  sendToIframe('setGravityPreset', { preset, magnitude: gravityMagnitude });
+                }}
+                style={{
+                  padding: '8px',
+                  borderRadius: '4px',
+                  border: '1px solid #ddd',
+                  backgroundColor: 'white',
+                  fontSize: '13px',
+                  width: '100%',
+                  marginTop: '4px'
+                }}
+              >
+                <option value="ZERO">🚫 Zero</option>
+                <option value="DOWN">⬇️ Down</option>
+                <option value="UP">⬆️ Up</option>
+                <option value="LEFT">⬅️ Left</option>
+                <option value="RIGHT">➡️ Right</option>
+                <option value="FRONT">🔽 Front</option>
+                <option value="REAR">🔼 Rear</option>
+              </select>
+            </View>
+
+            <View style={styles.sliderContainer}>
+              <Text style={styles.label}>Gravity Magnitude: {gravityMagnitude.toFixed(1)} m/s²</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={0}
+                maximumValue={20}
+                step={0.5}
+                value={gravityMagnitude}
+                onValueChange={setGravityMagnitude}
+                onSlidingComplete={(value) => {
+                  sendToIframe('setGravityPreset', { preset: gravityPreset, magnitude: value });
+                }}
+                minimumTrackTintColor="#2196F3"
+                maximumTrackTintColor="#ddd"
+              />
+            </View>
+
+            <View style={styles.sliderContainer}>
+              <Text style={styles.label}>Global Elasticity: {(globalElasticity / 100).toFixed(2)}</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={0}
+                maximumValue={100}
+                step={5}
+                value={globalElasticity}
+                onValueChange={setGlobalElasticity}
+                onSlidingComplete={(value) => {
+                  sendToIframe('setGlobalElasticity', value / 100);
+                }}
+                minimumTrackTintColor="#2196F3"
+                maximumTrackTintColor="#ddd"
+              />
+            </View>
           </View>
 
           {/* Rendering Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>🎨 Rendering</Text>
-            <Text style={styles.label}>Draw Mode: Lighted</Text>
-            <Text style={styles.smallText}>Press [W] for Wireframe, [P] for Points</Text>
+
+            <View style={styles.pickerContainer}>
+              <Text style={styles.label}>Draw Mode</Text>
+              <select
+                value={drawMode}
+                onChange={(e) => {
+                  const mode = e.target.value;
+                  setDrawMode(mode);
+                  sendToIframe('setDrawMode', mode);
+                }}
+                style={{
+                  padding: '8px',
+                  borderRadius: '4px',
+                  border: '1px solid #ddd',
+                  backgroundColor: 'white',
+                  fontSize: '13px',
+                  width: '100%',
+                  marginTop: '4px'
+                }}
+              >
+                <option value="LIGHTED">Lighted</option>
+                <option value="WIREFRAME">Wireframe</option>
+                <option value="POINTS">Points</option>
+              </select>
+            </View>
+
+            <View style={styles.sliderContainer}>
+              <Text style={styles.label}>Wireframe Density: {wireframeSegments}</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={4}
+                maximumValue={32}
+                step={2}
+                value={wireframeSegments}
+                onValueChange={setWireframeSegments}
+                onSlidingComplete={(value) => {
+                  sendToIframe('setWireframeSegments', value);
+                }}
+                minimumTrackTintColor="#9C27B0"
+                maximumTrackTintColor="#ddd"
+              />
+            </View>
           </View>
 
           {/* Stereo Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>🕶️ 3D Stereo</Text>
-            <Text style={styles.smallText}>Press [3] for Top-Bottom</Text>
-            <Text style={styles.smallText}>Press [A] for Anaglyph</Text>
+
+            <View style={styles.radioGroup}>
+              <Text style={styles.label}>Stereo Mode</Text>
+
+              <TouchableOpacity
+                style={styles.radioOption}
+                onPress={() => {
+                  setStereoMode('off');
+                  sendToIframe('setStereoMode', 'off');
+                }}
+              >
+                <View style={[styles.radioCircle, stereoMode === 'off' && styles.radioCircleSelected]}>
+                  {stereoMode === 'off' && <View style={styles.radioCircleInner} />}
+                </View>
+                <Text style={styles.radioLabel}>❌ Off</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.radioOption}
+                onPress={() => {
+                  setStereoMode('anaglyph');
+                  sendToIframe('setStereoMode', 'anaglyph');
+                }}
+              >
+                <View style={[styles.radioCircle, stereoMode === 'anaglyph' && styles.radioCircleSelected]}>
+                  {stereoMode === 'anaglyph' && <View style={styles.radioCircleInner} />}
+                </View>
+                <Text style={styles.radioLabel}>🕶️ Anaglyph (Red-Blue)</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.radioOption}
+                onPress={() => {
+                  setStereoMode('topbottom');
+                  sendToIframe('setStereoMode', 'topbottom');
+                }}
+              >
+                <View style={[styles.radioCircle, stereoMode === 'topbottom' && styles.radioCircleSelected]}>
+                  {stereoMode === 'topbottom' && <View style={styles.radioCircleInner} />}
+                </View>
+                <Text style={styles.radioLabel}>📺 Top-Bottom Split</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.sliderContainer}>
+              <Text style={styles.label}>Eye Separation: {(eyeSeparation / 100).toFixed(3)} m</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={2}
+                maximumValue={20}
+                step={0.2}
+                value={eyeSeparation}
+                onValueChange={setEyeSeparation}
+                onSlidingComplete={(value) => {
+                  sendToIframe('setEyeSeparation', value / 100);
+                }}
+                minimumTrackTintColor="#E91E63"
+                maximumTrackTintColor="#ddd"
+              />
+            </View>
+
+            <View style={styles.sliderContainer}>
+              <Text style={styles.label}>Cube Depth: {(cubeDepth * 0.1).toFixed(1)} m</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={-20}
+                maximumValue={20}
+                step={1}
+                value={cubeDepth}
+                onValueChange={setCubeDepth}
+                onSlidingComplete={(value) => {
+                  sendToIframe('setCubeDepth', value * 0.1);
+                }}
+                minimumTrackTintColor="#E91E63"
+                maximumTrackTintColor="#ddd"
+              />
+            </View>
           </View>
 
           {/* Keyboard Shortcuts */}
@@ -647,6 +929,43 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 8,
     marginBottom: 8,
+  },
+  pickerContainer: {
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  radioGroup: {
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  radioOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+    cursor: "pointer",
+  },
+  radioCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#666",
+    marginRight: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  radioCircleSelected: {
+    borderColor: "#4CAF50",
+  },
+  radioCircleInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#4CAF50",
+  },
+  radioLabel: {
+    fontSize: 13,
+    color: "#666",
   },
   applyButton: {
     backgroundColor: "#FF9800",
