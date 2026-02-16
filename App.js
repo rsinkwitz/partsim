@@ -57,7 +57,12 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
   const [wireframeSegments, setWireframeSegments] = useState(8);
   const [stereoMode, setStereoMode] = useState('off');
   const [eyeSeparation, setEyeSeparation] = useState(8.0); // in cm
-  const [cubeDepth, setCubeDepth] = useState(0);
+  // Start with 0.01 instead of 0 to work around React Native Web Slider rendering bug
+  const [cubeDepth, setCubeDepth] = useState(0.01);
+
+  // WebView loaded state for initial cube depth fix
+  const [webViewLoaded, setWebViewLoaded] = useState(false);
+
 
   // Stats from WebView
   const [fps, setFps] = useState(0);
@@ -106,6 +111,12 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
             if (data.gravityPreset !== undefined) {
               setGravityPreset(data.gravityPreset);
             }
+          } else if (data.type === 'cubeDepthUpdate') {
+            // Update cube depth slider (e.g., via keyboard shortcuts Ctrl+/-)
+            if (data.cubeDepth !== undefined) {
+              setCubeDepth(data.cubeDepth);
+              console.log('📦 UI: Cube depth updated to:', data.cubeDepth);
+            }
           }
         } catch (e) {
           // Ignore non-JSON messages
@@ -116,6 +127,20 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
       return () => window.removeEventListener('message', handleMessage);
     }
   }, []);
+
+  // Fix: Reset cube depth to exact 0 after initial render
+  // This fixes React Native Web Slider bug where initial value 0 renders at left
+  // Must be here (before any conditional returns) to comply with Rules of Hooks
+  useEffect(() => {
+    if (Platform.OS === "web") {
+      // Short delay to ensure slider is mounted, then set to exact 0
+      const timer = setTimeout(() => {
+        console.log('📦 Resetting cube depth to exact 0');
+        setCubeDepth(0);
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, []); // Run once on mount
 
   // Hilfsfunktion um Aktionen an die WebView zu senden
   const sendToWebView = (action, params) => {
@@ -243,6 +268,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
       webViewRef.current.contentWindow.postMessage(message, '*');
     }
   };
+
 
   // Auf Web verwenden wir einen iframe statt WebView für bessere Kompatibilität
   if (Platform.OS === "web") {
@@ -656,19 +682,29 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
 
             <View style={styles.sliderContainer}>
               <Text style={styles.label}>Cube Depth: {(cubeDepth * 0.1).toFixed(1)} m</Text>
-              <Slider
-                style={styles.slider}
-                minimumValue={-20}
-                maximumValue={20}
-                step={1}
-                value={cubeDepth}
-                onValueChange={setCubeDepth}
-                onSlidingComplete={(value) => {
-                  sendToIframe('setCubeDepth', value * 0.1);
-                }}
-                minimumTrackTintColor="#E91E63"
-                maximumTrackTintColor="#ddd"
-              />
+              <View style={styles.cubeDepthSliderWrapper}>
+                {/* Visual center marker */}
+                <View style={styles.cubeDepthCenterMarker} />
+                <Slider
+                  style={styles.slider}
+                  minimumValue={-20}
+                  maximumValue={20}
+                  step={1}
+                  value={cubeDepth}
+                  onValueChange={setCubeDepth}
+                  onSlidingComplete={(value) => {
+                    sendToIframe('setCubeDepth', value * 0.1);
+                  }}
+                  minimumTrackTintColor={cubeDepth < 0 ? "#2196F3" : "#E91E63"}
+                  maximumTrackTintColor={cubeDepth > 0 ? "#2196F3" : "#ddd"}
+                  thumbTintColor="#E91E63"
+                />
+              </View>
+              <View style={styles.sliderLabels}>
+                <Text style={styles.sliderLabelText}>-2.0m (closer)</Text>
+                <Text style={styles.sliderLabelCenter}>0 (default)</Text>
+                <Text style={styles.sliderLabelText}>+2.0m (farther)</Text>
+              </View>
             </View>
           </View>
 
@@ -683,6 +719,10 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
         <iframe
           ref={webViewRef}
           src={webAppUri}
+          onLoad={() => {
+            console.log('📺 iframe loaded');
+            setWebViewLoaded(true);
+          }}
           style={{
             flex: 1,
             border: "none",
@@ -922,6 +962,37 @@ const styles = StyleSheet.create({
   slider: {
     width: "100%",
     height: 40,
+  },
+  cubeDepthSliderWrapper: {
+    position: "relative",
+    width: "100%",
+  },
+  cubeDepthCenterMarker: {
+    position: "absolute",
+    left: "50%",
+    top: 15,
+    width: 2,
+    height: 10,
+    backgroundColor: "#666",
+    marginLeft: -1,
+    zIndex: 0,
+    pointerEvents: "none",
+  },
+  sliderLabels: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: -8,
+    paddingHorizontal: 4,
+  },
+  sliderLabelText: {
+    fontSize: 10,
+    color: "#999",
+  },
+  sliderLabelCenter: {
+    fontSize: 10,
+    color: "#666",
+    fontWeight: "600",
   },
   toggleContainer: {
     flexDirection: "row",

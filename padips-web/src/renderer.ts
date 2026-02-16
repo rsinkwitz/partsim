@@ -952,30 +952,52 @@ class PaDIPSApp {
    * Change cube depth by delta
    */
   private changeCubeDepth(delta: number): void {
-    const slider = document.getElementById('cubeDepth') as HTMLInputElement;
-    const valueDisplay = document.getElementById('cubeDepthValue');
+    // Get current depth from SceneManager
+    const currentDepth = this.sceneManager.getCubeDepth();
+    const currentValue = currentDepth / 0.1; // Convert from meters to slider units
+    const newValue = Math.max(-20, Math.min(20, currentValue + delta));
 
-    if (!slider) {
-      // No HTML UI - just use delta directly (±0.1m per step)
-      // Note: We can't track current depth without HTML, so just apply delta
-      console.log('📦 Cube depth changed (no HTML UI, delta:', delta * 0.1, 'm)');
-      return;
-    }
-
-    const current = parseFloat(slider.value);
-    const newValue = Math.max(-20, Math.min(20, current + delta));
-
-    if (newValue === current) {
+    if (newValue === currentValue) {
       console.log('⚠️ Cube depth limit reached');
       return;
     }
 
-    slider.value = newValue.toString();
+    // Apply change
+    this.sceneManager.setCubeDepth(newValue * 0.1);
+    console.log('📦 Cube depth changed to:', (newValue * 0.1).toFixed(1), 'm');
+
+    // Update HTML UI if it exists
+    const slider = document.getElementById('cubeDepth') as HTMLInputElement;
+    const valueDisplay = document.getElementById('cubeDepthValue');
+    if (slider) {
+      slider.value = newValue.toString();
+    }
     if (valueDisplay) {
       valueDisplay.textContent = newValue.toFixed(1);
     }
 
-    this.sceneManager.setCubeDepth(newValue * 0.1);
+    // Send state update to parent (React Native)
+    this.sendCubeDepthUpdate(newValue);
+  }
+
+  /**
+   * Send cube depth update to parent
+   */
+  private sendCubeDepthUpdate(value: number): void {
+    const update = {
+      type: 'cubeDepthUpdate',
+      cubeDepth: value,
+    };
+
+    // For iframe (Web)
+    if (window.parent !== window) {
+      window.parent.postMessage(JSON.stringify(update), '*');
+    }
+
+    // For React Native WebView
+    if ((window as any).ReactNativeWebView) {
+      (window as any).ReactNativeWebView.postMessage(JSON.stringify(update));
+    }
   }
 
   /**

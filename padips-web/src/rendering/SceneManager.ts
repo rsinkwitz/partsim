@@ -39,6 +39,7 @@ export class SceneManager {
   private wireframeSegments: number = 8; // Segments für Wireframe-Modus (4-32)
   private stereoMode: StereoMode = StereoMode.OFF;
   private initialCameraDistance: number = 0; // Initiale Distanz von Kamera zu Target
+  private currentCubeDepth: number = 0; // Aktueller Cube Depth Wert (-20 bis +20)
 
   constructor(canvas: HTMLCanvasElement) {
     // Scene
@@ -677,6 +678,8 @@ export class SceneManager {
    * Works correctly with OrbitControls rotation!
    */
   setCubeDepth(depth: number): void {
+    // Store current value (depth is in meters, convert to slider units)
+    this.currentCubeDepth = depth / 0.1; // -2.0m → -20, +2.0m → +20
 
     // Berechne neue Distanz basierend auf depth
     // Negative depth = näher (weniger Distanz), Positive depth = weiter (mehr Distanz)
@@ -693,7 +696,14 @@ export class SceneManager {
 
     // OrbitControls update wird automatisch im nächsten Frame aufgerufen
 
-    console.log('📦 Cube depth set to:', depth.toFixed(1), '(Distance:', newDistance.toFixed(2), ')');
+    console.log('📦 Cube depth set to:', depth.toFixed(1), 'm (slider:', this.currentCubeDepth.toFixed(0), ', Distance:', newDistance.toFixed(2), ')');
+  }
+
+  /**
+   * Get current cube depth value (in meters)
+   */
+  getCubeDepth(): number {
+    return this.currentCubeDepth * 0.1; // Convert slider units back to meters
   }
 
   /**
