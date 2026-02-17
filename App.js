@@ -161,6 +161,53 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
     }
   }, []);
 
+  // Forward keyboard events to iframe (for shortcuts to work always on Web)
+  useEffect(() => {
+    if (Platform.OS === "web") {
+      const handleKeyDown = (event) => {
+        // Check if iframe is loaded and has contentWindow
+        if (webViewRef.current && webViewRef.current.contentWindow) {
+          // Forward the keyboard event to the iframe
+          // Create a new KeyboardEvent with the same properties
+          const iframeWindow = webViewRef.current.contentWindow;
+
+          // Send as a message instead of trying to dispatch event directly
+          // (cross-origin restrictions prevent direct event dispatching)
+          iframeWindow.postMessage(JSON.stringify({
+            action: 'keydown',
+            params: {
+              key: event.key,
+              code: event.code,
+              ctrlKey: event.ctrlKey,
+              shiftKey: event.shiftKey,
+              altKey: event.altKey,
+              metaKey: event.metaKey
+            }
+          }), '*');
+
+          // Prevent default for known shortcuts
+          const shortcuts = ['s', 'n', '3', 'a', 't', 'w', 'p', 'g', 'F1'];
+          if (shortcuts.includes(event.key) ||
+              event.key === '+' || event.key === '-' ||
+              event.key === 'j' || event.key === 'k' ||
+              event.key === ' ') {
+            event.preventDefault();
+          }
+
+          console.log('⌨️ Forwarded key to iframe:', event.key);
+        }
+      };
+
+      window.addEventListener('keydown', handleKeyDown);
+      console.log('⌨️ Keyboard event forwarder installed');
+
+      return () => {
+        window.removeEventListener('keydown', handleKeyDown);
+        console.log('⌨️ Keyboard event forwarder removed');
+      };
+    }
+  }, []);
+
   // Fix: Reset cube depth to exact 0 after initial render
   // This fixes React Native Web Slider bug where initial value 0 renders at left
   // Must be here (before any conditional returns) to comply with Rules of Hooks
@@ -369,15 +416,21 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           {/* Stats */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>📊 Stats</Text>
-            <Text style={styles.statText}>FPS: {fps}</Text>
-            <Text style={styles.statText}>Balls: {actualBallCount}</Text>
-            <Text style={styles.statText}>Generation: {generation}</Text>
-            <Text style={styles.statText}>Checks: {checks}</Text>
+            <View style={styles.statsGrid}>
+              <View style={styles.statsRow}>
+                <Text style={styles.statText}>FPS: {fps}</Text>
+                <Text style={styles.statText}>Balls: {actualBallCount}</Text>
+              </View>
+              <View style={styles.statsRow}>
+                <Text style={styles.statText}>Gen: {generation}</Text>
+                <Text style={styles.statText}>Checks: {checks}</Text>
+              </View>
+            </View>
           </View>
 
           {/* Balls Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🎱 Balls</Text>
+            <Text style={styles.sectionTitle}>🎱 Balls - click "New" to apply</Text>
 
             <View style={styles.sliderContainer}>
               <Text style={styles.label}>Number of Balls: {ballCount}</Text>
@@ -391,7 +444,6 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
                 minimumTrackTintColor="#4CAF50"
                 maximumTrackTintColor="#ddd"
               />
-              <Text style={styles.smallText}>Click "New" to apply</Text>
             </View>
 
             <View style={styles.sliderContainer}>
@@ -1002,49 +1054,58 @@ const styles = StyleSheet.create({
     pointerEvents: "none", // Kein Blocking von Interaktionen
   },
   sidebarContent: {
-    padding: 20,
+    padding: 12,
   },
   title: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "bold",
     color: "#333",
-    marginBottom: 15,
+    marginBottom: 8,
   },
   section: {
-    marginBottom: 20,
-    paddingBottom: 15,
+    marginBottom: 12,
+    paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
     color: "#555",
-    marginBottom: 8,
+    marginBottom: 4,
   },
   statText: {
     fontSize: 12,
     color: "#666",
-    marginBottom: 4,
+    marginBottom: 2,
+    flex: 1,
+  },
+  statsGrid: {
+    marginTop: 4,
+  },
+  statsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 2,
   },
   label: {
-    fontSize: 13,
+    fontSize: 12,
     color: "#666",
-    marginBottom: 4,
+    marginBottom: 2,
   },
   smallText: {
     fontSize: 11,
     color: "#999",
     fontStyle: "italic",
-    marginTop: 4,
+    marginTop: 2,
   },
   smallLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#666",
   },
   sliderContainer: {
-    marginTop: 8,
-    marginBottom: 8,
+    marginTop: 4,
+    marginBottom: 4,
   },
   slider: {
     width: "100%",
@@ -1085,21 +1146,21 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 8,
-    marginBottom: 8,
+    marginTop: 4,
+    marginBottom: 4,
   },
   pickerContainer: {
-    marginTop: 8,
-    marginBottom: 12,
+    marginTop: 4,
+    marginBottom: 6,
   },
   radioGroup: {
-    marginTop: 8,
-    marginBottom: 12,
+    marginTop: 4,
+    marginBottom: 6,
   },
   radioOption: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 4,
     cursor: "pointer",
   },
   radioCircle: {
@@ -1128,16 +1189,16 @@ const styles = StyleSheet.create({
   applyButton: {
     backgroundColor: "#FF9800",
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 6,
     borderRadius: 6,
-    marginTop: 8,
-    marginBottom: 8,
+    marginTop: 4,
+    marginBottom: 4,
     alignItems: "center",
   },
   controlsContainer: {
     backgroundColor: "#f5f5f5",
-    paddingTop: 8,
-    paddingBottom: 8,
+    paddingTop: 6,
+    paddingBottom: 6,
     paddingHorizontal: 10,
     borderBottomWidth: 1,
     borderBottomColor: "#ddd",
@@ -1146,12 +1207,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginVertical: 4,
+    marginVertical: 2,
   },
   startButton: {
     backgroundColor: "#4CAF50",
     paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingVertical: 6,
     borderRadius: 6,
     marginHorizontal: 2,
     minWidth: 70,
@@ -1164,7 +1225,7 @@ const styles = StyleSheet.create({
   stopButton: {
     backgroundColor: "#f44336",
     paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingVertical: 6,
     borderRadius: 6,
     marginHorizontal: 2,
     minWidth: 70,
@@ -1177,7 +1238,7 @@ const styles = StyleSheet.create({
   newButton: {
     backgroundColor: "#2196F3",
     paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingVertical: 6,
     borderRadius: 6,
     marginHorizontal: 2,
     minWidth: 70,

@@ -72,9 +72,20 @@ export class Parallelogram {
 
   /**
    * Create cube walls (6 parallelograms)
+   * Each wall gets a unique random color (like IRIX original)
    */
   static createCube(radius: number, elasticity = DEFAULT_ELASTICITY): Parallelogram[] {
     const walls: Parallelogram[] = [];
+
+    // Generate 6 unique random colors
+    const colors = [
+      0xff6464, // Red-ish
+      0x64ff64, // Green-ish
+      0x6464ff, // Blue-ish
+      0xffff64, // Yellow-ish
+      0xff64ff, // Magenta-ish
+      0x64ffff  // Cyan-ish
+    ];
 
     // Bottom wall (z = -radius)
     walls.push(
@@ -83,7 +94,7 @@ export class Parallelogram {
         new THREE.Vector3(2 * radius, 0, 0),
         new THREE.Vector3(0, 2 * radius, 0),
         elasticity,
-        0x64ff64
+        colors[0]
       )
     );
 
@@ -94,7 +105,7 @@ export class Parallelogram {
         new THREE.Vector3(0, 2 * radius, 0),
         new THREE.Vector3(2 * radius, 0, 0),
         elasticity,
-        0x64ff64
+        colors[1]
       )
     );
 
@@ -105,7 +116,7 @@ export class Parallelogram {
         new THREE.Vector3(0, 0, 2 * radius),
         new THREE.Vector3(2 * radius, 0, 0),
         elasticity,
-        0x6464ff
+        colors[2]
       )
     );
 
@@ -116,7 +127,7 @@ export class Parallelogram {
         new THREE.Vector3(2 * radius, 0, 0),
         new THREE.Vector3(0, 0, 2 * radius),
         elasticity,
-        0x6464ff
+        colors[3]
       )
     );
 
@@ -127,7 +138,7 @@ export class Parallelogram {
         new THREE.Vector3(0, 2 * radius, 0),
         new THREE.Vector3(0, 0, 2 * radius),
         elasticity,
-        0xff6464
+        colors[4]
       )
     );
 
@@ -138,7 +149,7 @@ export class Parallelogram {
         new THREE.Vector3(0, 0, 2 * radius),
         new THREE.Vector3(0, 2 * radius, 0),
         elasticity,
-        0xff6464
+        colors[5]
       )
     );
 

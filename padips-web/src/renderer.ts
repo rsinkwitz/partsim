@@ -257,6 +257,24 @@ class PaDIPSApp {
             console.log('📦 Cube depth:', data.params.toFixed(1), 'm');
             break;
 
+          // Forwarded keyboard events
+          case 'keydown':
+            // Simulate keyboard event from forwarded data
+            const keyEvent = new KeyboardEvent('keydown', {
+              key: data.params.key,
+              code: data.params.code,
+              ctrlKey: data.params.ctrlKey,
+              shiftKey: data.params.shiftKey,
+              altKey: data.params.altKey,
+              metaKey: data.params.metaKey,
+              bubbles: true,
+              cancelable: true
+            });
+            // Dispatch the event to trigger keyboard shortcuts
+            window.dispatchEvent(keyEvent);
+            console.log('⌨️ Processed forwarded key:', data.params.key);
+            break;
+
           default:
             console.warn('Unknown action:', data.action);
         }
