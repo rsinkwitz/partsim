@@ -641,7 +641,7 @@ export class SceneManager {
    */
   setAutoRotation(enabled: boolean, speed: number = 1): void {
     this.controls.autoRotate = enabled;
-    this.controls.autoRotateSpeed = speed * 1.0; // CCW rotation speed (degrees per second at 60 fps)
+    this.controls.autoRotateSpeed = speed * 2.0; // CCW rotation speed (degrees per second at 60 fps) - 2x faster
 
     if (enabled) {
       console.log(`🔄 Auto-rotation: ON (${speed}x speed)`);
