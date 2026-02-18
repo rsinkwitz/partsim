@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { StyleSheet, Platform, ActivityIndicator, View, Text, TouchableOpacity, ScrollView, Switch, Dimensions } from "react-native";
+import { StyleSheet, Platform, ActivityIndicator, View, Text, TouchableOpacity, ScrollView, Switch, Dimensions, StatusBar } from "react-native";
 import { WebView } from "react-native-webview";
 import { SafeAreaView, SafeAreaProvider } from "react-native-safe-area-context";
 import * as FileSystem from "expo-file-system/legacy";
@@ -268,6 +268,9 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
     }
   }, [stereoMode, isPortrait, isVRMode]);
 
+  // Note: Volume button control for eye separation is not available in Expo
+  // Eye separation can be adjusted via the slider in the VR menu
+
   // Fix: Reset cube depth to exact 0 after initial render
   // This fixes React Native Web Slider bug where initial value 0 renders at left
   // Must be here (before any conditional returns) to comply with Rules of Hooks
@@ -337,6 +340,53 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
     sendToWebView('setElasticity', elasticity / 100);
 
     // Then reset with new parameters
+    sendToWebView('new');
+  };
+
+  // Handle "Reset" button - reset all parameters to defaults
+  const handleReset = () => {
+    console.log('🔄 Reset to defaults');
+
+    // Reset all UI state to defaults
+    setBallCount(100);
+    setMinRadius(5);
+    setMaxRadius(15);
+    setMaxVelocity(2.0);
+    setElasticity(90);
+    setGravityPreset('ZERO');
+    setCalcFactor(10);
+    setCollisionsEnabled(true);
+    setGridEnabled(false);
+    setGridSegments(8);
+    setShowWorldGrid(false);
+    setShowOccupiedVoxels(false);
+    setShowCollisionChecks(false);
+    setDrawMode('LIGHTED');
+    setWireframeSegments(8);
+    setStereoMode('off');
+    setEyeSeparation(8);
+    setCubeDepth(0);
+
+    // Send default values to WebView
+    sendToWebView('setBallCount', 100);
+    sendToWebView('setMinRadius', 0.05); // 5cm in meters
+    sendToWebView('setMaxRadius', 0.15); // 15cm in meters
+    sendToWebView('setMaxVelocity', 2.0);
+    sendToWebView('setElasticity', 0.9);
+    sendToWebView('setGravityPreset', { preset: 'ZERO', magnitude: 9.81 });
+    sendToWebView('setCalcFactor', 10);
+    sendToWebView('setCollisionsEnabled', true);
+    sendToWebView('disableGrid');
+    sendToWebView('setShowWorldGrid', false);
+    sendToWebView('setShowOccupiedVoxels', false);
+    sendToWebView('setShowCollisionChecks', false);
+    sendToWebView('setDrawMode', 'LIGHTED');
+    sendToWebView('setWireframeSegments', 8);
+    sendToWebView('setStereoMode', 'off');
+    sendToWebView('setEyeSeparation', 0.08);
+    sendToWebView('setCubeDepth', 0);
+
+    // Generate new balls with default parameters
     sendToWebView('new');
   };
 
@@ -1012,6 +1062,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
   if (isVRMode) {
     return (
       <SafeAreaView style={styles.vrContainer} edges={[]}>
+        <StatusBar barStyle="light-content" backgroundColor="#000" />
         {/* Fullscreen WebView */}
         <WebView
           ref={webViewRef}
@@ -1030,7 +1081,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           onMessage={handleWebViewMessage}
         />
 
-        {/* VR Tap Indicators (fade after 3s) */}
+        {/* VR Tap Indicators (fade after 3s) - only shown initially */}
         <VRIndicators
           visible={showVRIndicators}
           onLeftTap={() => {
@@ -1043,16 +1094,22 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           }}
         />
 
-        {/* Hidden tap zones to reactivate indicators when menu is closed */}
-        {!showVRMenu && !showVRIndicators && (
+        {/* Tap zones to open menu directly (always active when menu is closed) */}
+        {!showVRMenu && (
           <>
             <TouchableOpacity
               style={styles.vrHiddenTapZoneLeft}
-              onPress={() => setShowVRIndicators(true)}
+              onPress={() => {
+                setShowVRMenu(true);
+                setShowVRIndicators(false);
+              }}
             />
             <TouchableOpacity
               style={styles.vrHiddenTapZoneRight}
-              onPress={() => setShowVRIndicators(true)}
+              onPress={() => {
+                setShowVRMenu(true);
+                setShowVRIndicators(false);
+              }}
             />
           </>
         )}
@@ -1073,14 +1130,13 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
             onStart={() => sendToWebView('start')}
             onStop={() => sendToWebView('stop')}
             onNew={() => handleNew()}
+            onReset={() => handleReset()}
             isRunning={isRunning}
           />
 
           {/* Compact VR Controls - 2-column Toggle Layout */}
           <View style={{ padding: 8, backgroundColor: '#f9f9f9', borderRadius: 6, marginTop: 8 }}>
-            <Text style={styles.sectionTitle}>⚙️ Quick Settings</Text>
-
-            {/* Row 1: Gravity & Collisions */}
+            {/* Row 1: Gravity & Grid */}
             <View style={styles.vrToggleRow}>
               <View style={styles.vrToggleItem}>
                 <Text style={styles.vrToggleLabel}>🌍 Gravity</Text>
@@ -1097,22 +1153,6 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
               </View>
 
               <View style={styles.vrToggleItem}>
-                <Text style={styles.vrToggleLabel}>💥 Collisions</Text>
-                <Switch
-                  value={collisionsEnabled}
-                  onValueChange={(val) => {
-                    setCollisionsEnabled(val);
-                    sendToWebView('setCollisionsEnabled', val);
-                  }}
-                  trackColor={{ false: '#ccc', true: '#4CAF50' }}
-                  thumbColor={collisionsEnabled ? '#fff' : '#f4f3f4'}
-                />
-              </View>
-            </View>
-
-            {/* Row 2: Grid & Show Checks */}
-            <View style={styles.vrToggleRow}>
-              <View style={styles.vrToggleItem}>
                 <Text style={styles.vrToggleLabel}>🔲 Grid</Text>
                 <Switch
                   value={gridEnabled}
@@ -1128,7 +1168,10 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
                   thumbColor={gridEnabled ? '#fff' : '#f4f3f4'}
                 />
               </View>
+            </View>
 
+            {/* Row 2: Checks & Voxels */}
+            <View style={styles.vrToggleRow}>
               <View style={styles.vrToggleItem}>
                 <Text style={styles.vrToggleLabel}>🔍 Checks</Text>
                 <Switch
@@ -1141,6 +1184,68 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
                   thumbColor={showCollisionChecks ? '#fff' : '#f4f3f4'}
                 />
               </View>
+
+              <View style={styles.vrToggleItem}>
+                <Text style={styles.vrToggleLabel}>📦 Voxels</Text>
+                <Switch
+                  value={showOccupiedVoxels}
+                  onValueChange={(val) => {
+                    setShowOccupiedVoxels(val);
+                    sendToWebView('setShowOccupiedVoxels', val);
+                  }}
+                  trackColor={{ false: '#ccc', true: '#4CAF50' }}
+                  thumbColor={showOccupiedVoxels ? '#fff' : '#f4f3f4'}
+                />
+              </View>
+            </View>
+
+            {/* Row 3: Ball Count Buttons */}
+            <View style={{ marginTop: 12 }}>
+              <Text style={styles.vrToggleLabel}>🎱 Balls: {actualBallCount}</Text>
+              <View style={[styles.vrToggleRow, { marginTop: 4 }]}>
+                <TouchableOpacity
+                  style={[styles.vrBallButton, styles.vrBallButtonMinus]}
+                  onPress={() => {
+                    const newCount = Math.max(5, ballCount - 50);
+                    setBallCount(newCount);
+                    sendToWebView('setBallCount', newCount);
+                    sendToWebView('new');
+                  }}
+                >
+                  <Text style={styles.vrBallButtonText}>-50</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.vrBallButton, styles.vrBallButtonPlus]}
+                  onPress={() => {
+                    const newCount = Math.min(1000, ballCount + 50);
+                    setBallCount(newCount);
+                    sendToWebView('setBallCount', newCount);
+                    sendToWebView('new');
+                  }}
+                >
+                  <Text style={styles.vrBallButtonText}>+50</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Eye Separation Slider */}
+            <View style={{ marginTop: 12 }}>
+              <Text style={styles.vrToggleLabel}>👁️ Eye Sep: {eyeSeparation.toFixed(1)} cm</Text>
+              <Slider
+                style={{ width: '100%', height: 30 }}
+                minimumValue={5}
+                maximumValue={15}
+                step={0.2}
+                value={eyeSeparation}
+                onValueChange={(val) => {
+                  setEyeSeparation(val);
+                  sendToWebView('setEyeSeparation', val / 100);
+                }}
+                minimumTrackTintColor="#2196F3"
+                maximumTrackTintColor="#ddd"
+                thumbTintColor="#2196F3"
+              />
             </View>
           </View>
         </VRMenuOverlay>
@@ -1151,7 +1256,8 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
   // Portrait Mode - Stats + WebView (square) + Controls (scrollable)
   if (isPortrait) {
     return (
-      <SafeAreaView style={styles.containerPortrait} edges={['top', 'left', 'right']}>
+      <SafeAreaView style={styles.containerPortrait} edges={['top', 'left', 'right', 'bottom']}>
+        <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
         {/* Stats at top */}
         <StatsPanel fps={fps} ballCount={actualBallCount} generation={generation} checks={checks} />
 
@@ -1160,6 +1266,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           onStart={() => sendToWebView('start')}
           onStop={() => sendToWebView('stop')}
           onNew={() => handleNew()}
+          onReset={() => handleReset()}
           isRunning={isRunning}
         />
 
@@ -1227,7 +1334,8 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
 
   // Landscape Mode - Sidebar (left) + WebView (right)
   return (
-    <SafeAreaView style={styles.containerLandscape} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.containerLandscape} edges={['left', 'right', 'bottom']}>
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
       {/* Sidebar on left */}
       <View style={styles.sidebarLandscape}>
         <StatsPanel fps={fps} ballCount={actualBallCount} generation={generation} checks={checks} />
@@ -1235,6 +1343,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           onStart={() => sendToWebView('start')}
           onStop={() => sendToWebView('stop')}
           onNew={() => handleNew()}
+          onReset={() => handleReset()}
           isRunning={isRunning}
         />
         <ControlsPanel
@@ -1602,11 +1711,29 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
   },
+  vrBallButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 6,
+    marginHorizontal: 4,
+    alignItems: 'center',
+  },
+  vrBallButtonMinus: {
+    backgroundColor: '#f44336',
+  },
+  vrBallButtonPlus: {
+    backgroundColor: '#4CAF50',
+  },
+  vrBallButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
 
   // Portrait Mode
   containerPortrait: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f5f5f5', // Light gray - matches Stats panel background
   },
   webViewContainerPortrait: {
     aspectRatio: 1, // Square
@@ -1623,7 +1750,7 @@ const styles = StyleSheet.create({
   containerLandscape: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: '#fff',
+    backgroundColor: '#000', // Black background so white system icons are visible
   },
   sidebarLandscape: {
     width: 280,

@@ -26,9 +26,9 @@ export function StatsPanel({ fps, ballCount, generation, checks }) {
 }
 
 /**
- * Main Control Buttons (Start/Stop/New)
+ * Main Control Buttons (Start/Stop/New/Reset)
  */
-export function MainControls({ onStart, onStop, onNew, isRunning }) {
+export function MainControls({ onStart, onStop, onNew, onReset, isRunning }) {
   return (
     <View style={styles.mainControls}>
       <TouchableOpacity
@@ -36,20 +36,26 @@ export function MainControls({ onStart, onStop, onNew, isRunning }) {
         onPress={onStart}
         disabled={isRunning}
       >
-        <Text style={styles.buttonText}>▶ Start</Text>
+        <Text style={styles.buttonText}>▶</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={[styles.controlButton, styles.stopButton, !isRunning && styles.buttonDisabled]}
         onPress={onStop}
         disabled={!isRunning}
       >
-        <Text style={styles.buttonText}>⏸ Stop</Text>
+        <Text style={styles.buttonText}>⏸</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={[styles.controlButton, styles.newButton]}
         onPress={onNew}
       >
         <Text style={styles.buttonText}>✨ New</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.controlButton, styles.resetButton]}
+        onPress={onReset}
+      >
+        <Text style={styles.buttonText}>🔄</Text>
       </TouchableOpacity>
     </View>
   );
@@ -94,21 +100,24 @@ export function VRMenuOverlay({ visible, onClose, onExitVR, children }) {
         <ScrollView contentContainerStyle={styles.vrMenuContent}>
           {children}
 
-          <TouchableOpacity
-            style={[styles.controlButton, styles.closeButton]}
-            onPress={onClose}
-          >
-            <Text style={styles.buttonText}>✖ Close Menu</Text>
-          </TouchableOpacity>
-
-          {onExitVR && (
+          {/* Close and Exit VR buttons side-by-side */}
+          <View style={styles.vrMenuButtonRow}>
             <TouchableOpacity
-              style={[styles.controlButton, styles.exitVRButton]}
-              onPress={onExitVR}
+              style={[styles.controlButton, styles.closeButton, styles.vrMenuButton]}
+              onPress={onClose}
             >
-              <Text style={styles.buttonText}>🔙 Exit VR Mode</Text>
+              <Text style={styles.buttonText}>✖ Close</Text>
             </TouchableOpacity>
-          )}
+
+            {onExitVR && (
+              <TouchableOpacity
+                style={[styles.controlButton, styles.exitVRButton, styles.vrMenuButton]}
+                onPress={onExitVR}
+              >
+                <Text style={styles.buttonText}>🔙 Exit VR</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </ScrollView>
       </View>
       {/* Right side - tap to close */}
@@ -158,7 +167,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 6,
     marginHorizontal: 4,
-    minWidth: 80,
+    minWidth: 50, // Reduced for icon-only buttons
   },
   startButton: {
     backgroundColor: '#4CAF50',
@@ -168,6 +177,11 @@ const styles = StyleSheet.create({
   },
   newButton: {
     backgroundColor: '#2196F3',
+    minWidth: 80, // Wider for text label
+  },
+  resetButton: {
+    backgroundColor: '#FF9800',
+    minWidth: 50, // Icon only
   },
   closeButton: {
     backgroundColor: '#FF9800',
@@ -234,6 +248,15 @@ const styles = StyleSheet.create({
   vrMenuRightEmpty: {
     flex: 1,
     backgroundColor: 'transparent',
+  },
+  vrMenuButtonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    gap: 8,
+  },
+  vrMenuButton: {
+    flex: 1,
   },
 });
 
