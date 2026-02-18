@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
-import { StyleSheet, Platform, ActivityIndicator, View, Text, TouchableOpacity, ScrollView, Switch } from "react-native";
+import { StyleSheet, Platform, ActivityIndicator, View, Text, TouchableOpacity, ScrollView, Switch, Dimensions } from "react-native";
 import { WebView } from "react-native-webview";
 import { SafeAreaView, SafeAreaProvider } from "react-native-safe-area-context";
 import * as FileSystem from "expo-file-system/legacy";
 import { Asset } from "expo-asset";
 import Slider from '@react-native-community/slider';
+import { StatsPanel, MainControls, VRIndicators, VRMenuOverlay } from './MobileUI';
+import ControlsPanel from './ControlsPanel';
 
 export default function App() {
   const [webAppUri, setWebAppUri] = useState(null);
@@ -63,6 +65,11 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
   // WebView loaded state for initial cube depth fix
   const [webViewLoaded, setWebViewLoaded] = useState(false);
 
+  // Mobile-specific state
+  const [isPortrait, setIsPortrait] = useState(true);
+  const [isVRMode, setIsVRMode] = useState(false);
+  const [showVRMenu, setShowVRMenu] = useState(false);
+  const [showVRIndicators, setShowVRIndicators] = useState(true);
 
   // Stats from WebView
   const [fps, setFps] = useState(0);
@@ -208,6 +215,67 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
     }
   }, []);
 
+  // Orientation detection (Mobile only)
+  useEffect(() => {
+    if (Platform.OS !== "web") {
+      const updateOrientation = () => {
+        const { width, height } = require('react-native').Dimensions.get('window');
+        const portrait = height > width;
+        setIsPortrait(portrait);
+        console.log('📱 Orientation:', portrait ? 'Portrait' : 'Landscape');
+      };
+
+      // Initial check
+      updateOrientation();
+
+      // Listen to dimension changes
+      const subscription = require('react-native').Dimensions.addEventListener('change', updateOrientation);
+
+      return () => {
+        if (subscription && subscription.remove) {
+          subscription.remove();
+        }
+      };
+    }
+  }, []);
+
+  // Auto-activate VR mode when Side-by-Side Stereo + Landscape (Mobile only)
+  // OR auto-activate Side-by-Side when going to Landscape
+  useEffect(() => {
+    if (Platform.OS !== "web") {
+      const shouldBeVR = stereoMode === 'sidebyside' && !isPortrait;
+
+      if (shouldBeVR !== isVRMode) {
+        setIsVRMode(shouldBeVR);
+        if (shouldBeVR) {
+          console.log('🥽 VR Mode activated (Side-by-Side + Landscape)');
+          // Ensure Side-by-Side is active in WebView (with small delay for WebView readiness)
+          setTimeout(() => {
+            sendToWebView('setStereoMode', 'sidebyside');
+          }, 100);
+          setShowVRIndicators(true);
+          // Hide indicators after 3 seconds
+          setTimeout(() => setShowVRIndicators(false), 3000);
+        } else {
+          console.log('📱 VR Mode deactivated');
+          setShowVRMenu(false);
+          // Turn off stereo when leaving VR
+          if (stereoMode === 'sidebyside') {
+            setStereoMode('off');
+            sendToWebView('setStereoMode', 'off');
+          }
+        }
+      }
+
+      // Auto-activate Side-by-Side when going to Landscape (if not already in VR)
+      if (!isPortrait && stereoMode === 'off' && !isVRMode) {
+        console.log('📱 Landscape detected → Auto-activating Side-by-Side VR');
+        setStereoMode('sidebyside');
+        // WebView update will be sent by the effect above when stereoMode changes
+      }
+    }
+  }, [stereoMode, isPortrait, isVRMode]);
+
   // Fix: Reset cube depth to exact 0 after initial render
   // This fixes React Native Web Slider bug where initial value 0 renders at left
   // Must be here (before any conditional returns) to comply with Rules of Hooks
@@ -226,7 +294,98 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
   const sendToWebView = (action, params) => {
     if (webViewRef.current) {
       const message = JSON.stringify({ action, params });
+      // Log UI→WebView messages to debug which controls work
+      if (action !== 'setCalcFactor') { // CalcFactor spammt bei Slider-Bewegung
+        console.log('📤 UI→WebView:', action, params);
+      }
       webViewRef.current.postMessage(message);
+    }
+  };
+
+  // Injected JavaScript to setup message bridge
+  const injectedJavaScript = `
+    (function() {
+      console.log('🔧 Setting up React Native WebView message bridge...');
+
+      // Listen for messages FROM React Native (sent via postMessage)
+      // These need to be dispatched as window 'message' events so the webapp can receive them
+      document.addEventListener('message', function(e) {
+        // Only log non-routine messages (not stateUpdate responses)
+        // Dispatch as window message event for the webapp to receive
+        window.postMessage(e.data, '*');
+      });
+
+      // For iOS
+      window.addEventListener('message', function(e) {
+        // Messages dispatched by the bridge above - no need to log
+      });
+
+      console.log('✓ React Native WebView message bridge initialized');
+    })();
+    true; // Required for Android
+  `;
+
+  // Handle "New" button with parameter validation
+  const handleNew = () => {
+    let finalMinRadius = minRadius;
+    let finalMaxRadius = maxRadius;
+
+    // If max < min, adjust min to max
+    if (finalMaxRadius < finalMinRadius) {
+      console.log('📏 Correcting min to match max:', finalMinRadius, '→', finalMaxRadius);
+      finalMinRadius = finalMaxRadius;
+      setMinRadius(finalMaxRadius);
+    }
+
+    // Send all parameters before reset
+    sendToWebView('setBallCount', ballCount);
+    sendToWebView('setMinRadius', finalMinRadius / 100); // Convert cm to m
+    sendToWebView('setMaxRadius', finalMaxRadius / 100);
+    sendToWebView('setMaxVelocity', maxVelocity);
+    sendToWebView('setElasticity', elasticity / 100);
+
+    // Then reset with new parameters
+    sendToWebView('new');
+  };
+
+  // Handle messages from WebView
+  const handleWebViewMessage = (event) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+
+      // Only log non-stateUpdate messages to reduce spam
+      if (data.type !== 'stateUpdate') {
+        console.log('📥 WebView message:', data.type, data);
+      }
+
+      if (data.type === 'stateUpdate') {
+        setFps(data.fps || 0);
+        setGeneration(data.generation || 0);
+        setIsRunning(data.isRunning !== undefined ? data.isRunning : true);
+        setChecks(data.checks || 0);
+
+        const newBallCount = data.ballCount || 30;
+        setActualBallCount(prevActual => {
+          if (newBallCount !== prevActual && newBallCount === ballCount) {
+            return newBallCount;
+          }
+          if (newBallCount !== 30 && newBallCount !== prevActual) {
+            return newBallCount;
+          }
+          return prevActual;
+        });
+      }
+
+      if (data.type === 'error' || data.type === 'unhandledrejection') {
+        console.error("❌ WebView JS Error:", JSON.stringify(data, null, 2));
+      }
+
+      if (data.type === 'log') {
+        console.log("📱 WebView:", data.message);
+      }
+    } catch (e) {
+      console.warn('⚠️ Failed to parse WebView message:', e.message);
+      // Ignore non-JSON messages
     }
   };
 
@@ -855,30 +1014,281 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
     );
   }
 
-  return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      {/* PaDIPS Control Panel - Oben auf Mobile */}
-      <View style={styles.controlsContainer}>
-        <View style={styles.buttonRow}>
-          <TouchableOpacity style={styles.startButton} onPress={() => sendToWebView('start')}>
-            <Text style={styles.buttonText}>▶ Start</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.stopButton} onPress={() => sendToWebView('stop')}>
-            <Text style={styles.buttonText}>⏸ Stop</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.newButton} onPress={() => sendToWebView('new')}>
-            <Text style={styles.buttonText}>✨ New</Text>
-          </TouchableOpacity>
+  // === MOBILE LAYOUTS ===
+
+  // VR Mode (Cardboard) - Fullscreen with optional overlay
+  if (isVRMode) {
+    return (
+      <SafeAreaView style={styles.vrContainer} edges={[]}>
+        {/* Fullscreen WebView */}
+        <WebView
+          ref={webViewRef}
+          source={{ uri: webAppUri }}
+          style={styles.vrWebView}
+          originWhitelist={['*', 'file://', 'http://', 'https://']}
+          javaScriptEnabled={true}
+          domStorageEnabled={true}
+          allowsInlineMediaPlayback={true}
+          mediaPlaybackRequiresUserAction={false}
+          allowFileAccess={true}
+          allowUniversalAccessFromFileURLs={true}
+          allowFileAccessFromFileURLs={true}
+          mixedContentMode="always"
+          injectedJavaScript={injectedJavaScript}
+          onMessage={handleWebViewMessage}
+        />
+
+        {/* VR Tap Indicators (fade after 3s) */}
+        <VRIndicators
+          visible={showVRIndicators}
+          onLeftTap={() => {
+            setShowVRMenu(true);
+            setShowVRIndicators(false);
+          }}
+          onRightTap={() => {
+            setShowVRMenu(true);
+            setShowVRIndicators(false);
+          }}
+        />
+
+        {/* Hidden tap zones to reactivate indicators when menu is closed */}
+        {!showVRMenu && !showVRIndicators && (
+          <>
+            <TouchableOpacity
+              style={styles.vrHiddenTapZoneLeft}
+              onPress={() => setShowVRIndicators(true)}
+            />
+            <TouchableOpacity
+              style={styles.vrHiddenTapZoneRight}
+              onPress={() => setShowVRIndicators(true)}
+            />
+          </>
+        )}
+
+        {/* VR Menu Overlay */}
+        <VRMenuOverlay
+          visible={showVRMenu}
+          onClose={() => setShowVRMenu(false)}
+          onExitVR={() => {
+            // Turn off stereo mode to exit VR
+            setStereoMode('off');
+            sendToWebView('setStereoMode', 'off');
+            setShowVRMenu(false);
+          }}
+        >
+          <StatsPanel fps={fps} ballCount={actualBallCount} generation={generation} checks={checks} />
+          <MainControls
+            onStart={() => sendToWebView('start')}
+            onStop={() => sendToWebView('stop')}
+            onNew={() => handleNew()}
+            isRunning={isRunning}
+          />
+
+          {/* Compact VR Controls - 2-column Toggle Layout */}
+          <View style={{ padding: 8, backgroundColor: '#f9f9f9', borderRadius: 6, marginTop: 8 }}>
+            <Text style={styles.sectionTitle}>⚙️ Quick Settings</Text>
+
+            {/* Row 1: Gravity & Collisions */}
+            <View style={styles.vrToggleRow}>
+              <View style={styles.vrToggleItem}>
+                <Text style={styles.vrToggleLabel}>🌍 Gravity</Text>
+                <Switch
+                  value={gravityPreset === 'DOWN'}
+                  onValueChange={(val) => {
+                    const newPreset = val ? 'DOWN' : 'ZERO';
+                    setGravityPreset(newPreset);
+                    sendToWebView('setGravityPreset', { preset: newPreset, magnitude: gravityMagnitude });
+                  }}
+                  trackColor={{ false: '#ccc', true: '#4CAF50' }}
+                  thumbColor={gravityPreset === 'DOWN' ? '#fff' : '#f4f3f4'}
+                />
+              </View>
+
+              <View style={styles.vrToggleItem}>
+                <Text style={styles.vrToggleLabel}>💥 Collisions</Text>
+                <Switch
+                  value={collisionsEnabled}
+                  onValueChange={(val) => {
+                    setCollisionsEnabled(val);
+                    sendToWebView('setCollisionsEnabled', val);
+                  }}
+                  trackColor={{ false: '#ccc', true: '#4CAF50' }}
+                  thumbColor={collisionsEnabled ? '#fff' : '#f4f3f4'}
+                />
+              </View>
+            </View>
+
+            {/* Row 2: Grid & Show Checks */}
+            <View style={styles.vrToggleRow}>
+              <View style={styles.vrToggleItem}>
+                <Text style={styles.vrToggleLabel}>🔲 Grid</Text>
+                <Switch
+                  value={gridEnabled}
+                  onValueChange={(val) => {
+                    setGridEnabled(val);
+                    if (val) {
+                      sendToWebView('applyGrid', { segments: gridSegments });
+                    } else {
+                      sendToWebView('disableGrid');
+                    }
+                  }}
+                  trackColor={{ false: '#ccc', true: '#4CAF50' }}
+                  thumbColor={gridEnabled ? '#fff' : '#f4f3f4'}
+                />
+              </View>
+
+              <View style={styles.vrToggleItem}>
+                <Text style={styles.vrToggleLabel}>🔍 Checks</Text>
+                <Switch
+                  value={showCollisionChecks}
+                  onValueChange={(val) => {
+                    setShowCollisionChecks(val);
+                    sendToWebView('setShowCollisionChecks', val);
+                  }}
+                  trackColor={{ false: '#ccc', true: '#4CAF50' }}
+                  thumbColor={showCollisionChecks ? '#fff' : '#f4f3f4'}
+                />
+              </View>
+            </View>
+          </View>
+        </VRMenuOverlay>
+      </SafeAreaView>
+    );
+  }
+
+  // Portrait Mode - Stats + WebView (square) + Controls (scrollable)
+  if (isPortrait) {
+    return (
+      <SafeAreaView style={styles.containerPortrait} edges={['top', 'left', 'right']}>
+        {/* Stats at top */}
+        <StatsPanel fps={fps} ballCount={actualBallCount} generation={generation} checks={checks} />
+
+        {/* Main Controls (sticky) */}
+        <MainControls
+          onStart={() => sendToWebView('start')}
+          onStop={() => sendToWebView('stop')}
+          onNew={() => handleNew()}
+          isRunning={isRunning}
+        />
+
+        {/* WebView - Square, centered */}
+        <View style={styles.webViewContainerPortrait}>
+          <WebView
+            ref={webViewRef}
+            source={{ uri: webAppUri }}
+            style={styles.webViewPortrait}
+            originWhitelist={['*', 'file://', 'http://', 'https://']}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            allowsInlineMediaPlayback={true}
+            mediaPlaybackRequiresUserAction={false}
+            allowFileAccess={true}
+            allowUniversalAccessFromFileURLs={true}
+            allowFileAccessFromFileURLs={true}
+            mixedContentMode="always"
+            injectedJavaScript={injectedJavaScript}
+            onMessage={handleWebViewMessage}
+          />
         </View>
 
-        <Text style={styles.label}>🎱 Balls: 30 | 🌍 Gravity: Down | ⌨️ Press [F1] for help</Text>
+        {/* Controls below - scrollable */}
+        <ControlsPanel
+          ballCount={ballCount}
+          setBallCount={setBallCount}
+          minRadius={minRadius}
+          setMinRadius={setMinRadius}
+          maxRadius={maxRadius}
+          setMaxRadius={setMaxRadius}
+          gravityPreset={gravityPreset}
+          setGravityPreset={setGravityPreset}
+          gravityMagnitude={gravityMagnitude}
+          collisionsEnabled={collisionsEnabled}
+          setCollisionsEnabled={setCollisionsEnabled}
+          calcFactor={calcFactor}
+          setCalcFactor={setCalcFactor}
+          gridEnabled={gridEnabled}
+          setGridEnabled={setGridEnabled}
+          gridSegments={gridSegments}
+          setGridSegments={setGridSegments}
+          showWorldGrid={showWorldGrid}
+          setShowWorldGrid={setShowWorldGrid}
+          showOccupiedVoxels={showOccupiedVoxels}
+          setShowOccupiedVoxels={setShowOccupiedVoxels}
+          showCollisionChecks={showCollisionChecks}
+          setShowCollisionChecks={setShowCollisionChecks}
+          drawMode={drawMode}
+          setDrawMode={setDrawMode}
+          wireframeSegments={wireframeSegments}
+          setWireframeSegments={setWireframeSegments}
+          stereoMode={stereoMode}
+          setStereoMode={setStereoMode}
+          eyeSeparation={eyeSeparation}
+          setEyeSeparation={setEyeSeparation}
+          cubeDepth={cubeDepth}
+          setCubeDepth={setCubeDepth}
+          sendToWebView={sendToWebView}
+          isPortrait={true}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  // Landscape Mode - Sidebar (left) + WebView (right)
+  return (
+    <SafeAreaView style={styles.containerLandscape} edges={['top', 'left', 'right']}>
+      {/* Sidebar on left */}
+      <View style={styles.sidebarLandscape}>
+        <StatsPanel fps={fps} ballCount={actualBallCount} generation={generation} checks={checks} />
+        <MainControls
+          onStart={() => sendToWebView('start')}
+          onStop={() => sendToWebView('stop')}
+          onNew={() => handleNew()}
+          isRunning={isRunning}
+        />
+        <ControlsPanel
+          ballCount={ballCount}
+          setBallCount={setBallCount}
+          minRadius={minRadius}
+          setMinRadius={setMinRadius}
+          maxRadius={maxRadius}
+          setMaxRadius={setMaxRadius}
+          gravityPreset={gravityPreset}
+          setGravityPreset={setGravityPreset}
+          gravityMagnitude={gravityMagnitude}
+          collisionsEnabled={collisionsEnabled}
+          setCollisionsEnabled={setCollisionsEnabled}
+          calcFactor={calcFactor}
+          setCalcFactor={setCalcFactor}
+          gridEnabled={gridEnabled}
+          setGridEnabled={setGridEnabled}
+          gridSegments={gridSegments}
+          setGridSegments={setGridSegments}
+          showWorldGrid={showWorldGrid}
+          setShowWorldGrid={setShowWorldGrid}
+          showOccupiedVoxels={showOccupiedVoxels}
+          setShowOccupiedVoxels={setShowOccupiedVoxels}
+          showCollisionChecks={showCollisionChecks}
+          setShowCollisionChecks={setShowCollisionChecks}
+          drawMode={drawMode}
+          setDrawMode={setDrawMode}
+          wireframeSegments={wireframeSegments}
+          setWireframeSegments={setWireframeSegments}
+          stereoMode={stereoMode}
+          setStereoMode={setStereoMode}
+          eyeSeparation={eyeSeparation}
+          setEyeSeparation={setEyeSeparation}
+          cubeDepth={cubeDepth}
+          setCubeDepth={setCubeDepth}
+          sendToWebView={sendToWebView}
+          isPortrait={false}
+        />
       </View>
 
-      {/* WebView */}
+      {/* WebView on right */}
       <WebView
         ref={webViewRef}
         source={{ uri: webAppUri }}
-        style={styles.webview}
+        style={styles.webViewLandscape}
         originWhitelist={['*', 'file://', 'http://', 'https://']}
         javaScriptEnabled={true}
         domStorageEnabled={true}
@@ -888,125 +1298,14 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
         allowUniversalAccessFromFileURLs={true}
         allowFileAccessFromFileURLs={true}
         mixedContentMode="always"
+        injectedJavaScript={injectedJavaScript}
+        onMessage={handleWebViewMessage}
         onError={(syntheticEvent) => {
           const { nativeEvent } = syntheticEvent;
           console.error("WebView error: ", nativeEvent);
         }}
-        onHttpError={(syntheticEvent) => {
-          const { nativeEvent } = syntheticEvent;
-          console.error("WebView HTTP error: ", nativeEvent);
-        }}
         onLoadEnd={() => {
           console.log("WebView loaded successfully");
-        }}
-        onConsoleMessage={(event) => {
-          console.log("WebView console:", event.nativeEvent.message);
-        }}
-        onMessage={(event) => {
-          // This enables two-way communication
-          console.log("Message from WebView:", event.nativeEvent.data);
-        }}
-        injectedJavaScript={`
-          // Ensure document and window are available before any script loads
-          console.log('=== WebView Init ===');
-          console.log('document:', typeof document);
-          console.log('window:', typeof window);
-          console.log('document.readyState:', document.readyState);
-
-          if (typeof document === 'undefined') {
-            console.error('CRITICAL: document is undefined in WebView');
-          }
-          if (typeof window === 'undefined') {
-            console.error('CRITICAL: window is undefined in WebView');
-          }
-
-          // Check if script tags are present
-          setTimeout(() => {
-            const scripts = document.getElementsByTagName('script');
-            console.log('Number of script tags:', scripts.length);
-            for (let i = 0; i < scripts.length; i++) {
-              console.log('Script', i, ':', scripts[i].src || 'inline');
-            }
-          }, 100);
-
-          // Leite console.log an React Native weiter
-          const originalLog = console.log;
-          console.log = function(...args) {
-            // Rufe original console.log auf
-            originalLog.apply(console, args);
-            // Sende an React Native
-            try {
-              const message = args.map(arg =>
-                typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
-              ).join(' ');
-              window.ReactNativeWebView.postMessage(JSON.stringify({
-                type: 'log',
-                message: message
-              }));
-            } catch (e) {
-              // Ignoriere Fehler beim Weiterleiten
-            }
-          };
-
-          // Fange alle Fehler ab
-          window.onerror = function(message, source, lineno, colno, error) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'error',
-              message: message,
-              source: source,
-              lineno: lineno,
-              colno: colno,
-              stack: error ? error.stack : null
-            }));
-            return false;
-          };
-
-          // Fange unbehandelte Promise-Fehler ab
-          window.addEventListener('unhandledrejection', function(event) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'unhandledrejection',
-              reason: String(event.reason)
-            }));
-          });
-
-          console.log('WebView error handler initialized');
-
-          // Debugging: Prüfe DOM und Three.js nach dem Laden
-          setTimeout(function() {
-            var containerEl = document.getElementById('container');
-            var containerHTML = containerEl ? containerEl.innerHTML : 'not found';
-            var debug = {
-              container: containerEl ? 'exists' : 'not found',
-              canvas: document.querySelector('canvas') ? 'exists' : 'not found',
-              THREE: typeof THREE !== 'undefined',
-              cube: typeof cube !== 'undefined',
-              containerHTML: containerHTML.substring(0, 100) + '...'
-            };
-            console.log('DEBUG INFO:', JSON.stringify(debug, null, 2));
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'debug',
-              data: debug
-            }));
-          }, 2000);
-
-          true;
-        `}
-        onMessage={(event) => {
-          try {
-            const data = JSON.parse(event.nativeEvent.data);
-            if (data.type === 'error' || data.type === 'unhandledrejection') {
-              console.error("❌ WebView JS Error:", JSON.stringify(data, null, 2));
-            } else if (data.type === 'debug') {
-              console.log("🔍 DEBUG INFO:", JSON.stringify(data.data, null, 2));
-            } else if (data.type === 'log') {
-              // Leite console.log aus dem WebView weiter
-              console.log("📱 WebView:", data.message);
-            } else {
-              console.log("WebView message:", JSON.stringify(data, null, 2));
-            }
-          } catch (e) {
-            console.log("WebView message:", event.nativeEvent.data);
-          }
         }}
       />
     </SafeAreaView>
@@ -1261,6 +1560,89 @@ const styles = StyleSheet.create({
   webview: {
     flex: 1,
   },
+
+  // === MOBILE LAYOUTS ===
+
+  // VR Mode (Cardboard)
+  vrContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  vrWebView: {
+    flex: 1,
+  },
+  vrHiddenTapZoneLeft: {
+    position: 'absolute',
+    left: 0,
+    bottom: 0,
+    width: 80,
+    height: 80,
+    backgroundColor: 'transparent',
+  },
+  vrHiddenTapZoneRight: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    width: 80,
+    height: 80,
+    backgroundColor: 'transparent',
+  },
+
+  // VR Toggle Rows (2-column layout)
+  vrToggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  vrToggleItem: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: '#fff',
+    borderRadius: 6,
+    marginHorizontal: 4,
+  },
+  vrToggleLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#333',
+  },
+
+  // Portrait Mode
+  containerPortrait: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  webViewContainerPortrait: {
+    aspectRatio: 1, // Square
+    width: '100%',
+    maxWidth: 500,
+    alignSelf: 'center',
+    backgroundColor: '#000',
+  },
+  webViewPortrait: {
+    flex: 1,
+  },
+
+  // Landscape Mode
+  containerLandscape: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+  },
+  sidebarLandscape: {
+    width: 280,
+    borderRightWidth: 1,
+    borderRightColor: '#ddd',
+    backgroundColor: '#f9f9f9',
+  },
+  webViewLandscape: {
+    flex: 1,
+  },
+
   loadingContainer: {
     flex: 1,
     justifyContent: "center",

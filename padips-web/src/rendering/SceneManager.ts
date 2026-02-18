@@ -38,6 +38,7 @@ export class SceneManager {
   private sphereSegments: number = 16;
   private wireframeSegments: number = 8; // Segments für Wireframe-Modus (4-32)
   private stereoMode: StereoMode = StereoMode.OFF;
+  private lastLoggedStereoMode: StereoMode = StereoMode.OFF; // Track last logged mode to avoid spam
   private initialCameraDistance: number = 0; // Initiale Distanz von Kamera zu Target
   private currentCubeDepth: number = 0; // Aktueller Cube Depth Wert (-20 bis +20)
 
@@ -492,6 +493,10 @@ export class SceneManager {
     // Handle different stereo modes
     if (this.stereoMode === StereoMode.OFF) {
       // Normal mono rendering
+      // Reset logger for next stereo activation
+      if (this.lastLoggedStereoMode !== StereoMode.OFF) {
+        this.lastLoggedStereoMode = StereoMode.OFF;
+      }
       this.renderer.render(this.scene, this.camera);
 
     } else if (this.stereoMode === StereoMode.ANAGLYPH && this.stereoCamera && this.renderTargetL && this.renderTargetR && this.anaglyphMaterial) {
@@ -544,6 +549,74 @@ export class SceneManager {
       // 4. Reset viewport and scissor
       this.renderer.setScissorTest(false);
       this.renderer.setViewport(0, 0, width, height);
+
+    } else if (this.stereoMode === StereoMode.SIDE_BY_SIDE && this.stereoCamera) {
+      // Side-by-Side stereo for VR Cardboard and Projectors
+
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      const halfWidth = width / 2;
+
+      // Detect platform: Mobile VR needs 1:1 aspect, Web/Projector needs 1/2 width
+      // Mobile VR: Each eye gets full height (halfWidth / height ≈ 1 for square screens)
+      // Web/Projector: Each eye gets half width relative to full screen (halfWidth / height < 0.5)
+
+      // Simple heuristic: If in portrait or very wide screen, assume Web/Projector
+      // Otherwise assume Mobile VR
+      const isMobileVR = (width / height) < 2.0; // Mobile landscape typically ~16:9 (1.77)
+
+      let aspectPerEye: number;
+      if (isMobileVR) {
+        // Mobile VR: Use full viewport aspect (1:1 for square-ish screens)
+        aspectPerEye = halfWidth / height;
+      } else {
+        // Web/Projector: Use half-width aspect (compressed for projector stretching)
+        aspectPerEye = (halfWidth / 2) / height; // Half of half-width
+      }
+
+      // Update camera aspect for each eye before updating StereoCamera
+      const originalAspect = this.camera.aspect;
+      this.camera.aspect = aspectPerEye;
+      this.camera.updateProjectionMatrix();
+
+      // Update StereoCamera with corrected aspect
+      this.stereoCamera.aspect = aspectPerEye;
+      this.stereoCamera.update(this.camera);
+
+      // Log only once when mode changes
+      if (this.lastLoggedStereoMode !== StereoMode.SIDE_BY_SIDE) {
+        console.log('🥽 Side-by-Side Stereo Active:', {
+          width,
+          height,
+          halfWidth,
+          screenRatio: (width / height).toFixed(2),
+          isMobileVR,
+          aspectPerEye: aspectPerEye.toFixed(3),
+          eyeSep: this.stereoCamera.eyeSep,
+          cameraL: !!this.stereoCamera.cameraL,
+          cameraR: !!this.stereoCamera.cameraR
+        });
+        this.lastLoggedStereoMode = StereoMode.SIDE_BY_SIDE;
+      }
+
+      // 2. Render left half (left eye)
+      this.renderer.setViewport(0, 0, halfWidth, height);
+      this.renderer.setScissor(0, 0, halfWidth, height);
+      this.renderer.setScissorTest(true);
+      this.renderer.render(this.scene, this.stereoCamera.cameraL);
+
+      // 3. Render right half (right eye)
+      this.renderer.setViewport(halfWidth, 0, halfWidth, height);
+      this.renderer.setScissor(halfWidth, 0, halfWidth, height);
+      this.renderer.render(this.scene, this.stereoCamera.cameraR);
+
+      // 4. Reset viewport and scissor
+      this.renderer.setScissorTest(false);
+      this.renderer.setViewport(0, 0, width, height);
+
+      // Restore original aspect
+      this.camera.aspect = originalAspect;
+      this.camera.updateProjectionMatrix();
     }
   }
 
@@ -570,6 +643,9 @@ export class SceneManager {
     } else if (this.stereoMode === StereoMode.TOP_BOTTOM) {
       console.log('Rendering: Top-Bottom Split Screen');
       console.log('Viewport: Top half = left eye, Bottom half = right eye');
+    } else if (this.stereoMode === StereoMode.SIDE_BY_SIDE) {
+      console.log('Rendering: Side-by-Side VR Cardboard');
+      console.log('Viewport: Left half = left eye, Right half = right eye');
     }
 
     console.groupEnd();
@@ -623,6 +699,8 @@ export class SceneManager {
         console.log('🎨 Red-Blue Anaglyph rendering active');
       } else if (mode === StereoMode.TOP_BOTTOM) {
         console.log('📺 Top-Bottom split-screen rendering active');
+      } else if (mode === StereoMode.SIDE_BY_SIDE) {
+        console.log('🥽 Side-by-Side VR Cardboard rendering active');
       }
     }
   }

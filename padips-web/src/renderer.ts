@@ -37,6 +37,12 @@ class PaDIPSApp {
     showCollisionChecks: false,
   };
 
+  // Simulation state (persistent across resets)
+  private simulationState = {
+    calcFactor: 10,
+    collisionsEnabled: true,
+  };
+
   // UI state
   private ballParams: BallGenerationParams = { ...DEFAULT_BALL_PARAMS };
 
@@ -82,9 +88,17 @@ class PaDIPSApp {
    * Setup PostMessage listener for external control
    */
   private setupPostMessageListener(): void {
-    window.addEventListener('message', (event) => {
+    // Handler function for processing messages
+    const handleMessage = (event: MessageEvent | any) => {
       try {
-        const data = JSON.parse(event.data);
+        // For React Native WebView, event.data might be a string or already parsed
+        let data;
+        if (typeof event.data === 'string') {
+          data = JSON.parse(event.data);
+        } else {
+          data = event.data;
+        }
+
         console.log('📨 PostMessage received:', data);
 
         switch (data.action) {
@@ -134,10 +148,12 @@ class PaDIPSApp {
 
           // Simulation
           case 'setCalcFactor':
+            this.simulationState.calcFactor = data.params;
             this.physicsEngine.setCalcFactor(data.params);
             console.log('⚙️ Calc factor set to:', data.params);
             break;
           case 'setCollisionsEnabled':
+            this.simulationState.collisionsEnabled = data.params;
             this.physicsEngine.setCollisionsEnabled(data.params);
             console.log('⚙️ Collisions:', data.params ? 'ON' : 'OFF');
             break;
@@ -279,10 +295,25 @@ class PaDIPSApp {
             console.warn('Unknown action:', data.action);
         }
       } catch (e) {
+        console.warn('⚠️ Error processing message:', e);
         // Ignore non-JSON messages
       }
-    });
-    console.log('📨 PostMessage listener initialized');
+    };
+
+    // Listen on window for iframe messages (Web)
+    window.addEventListener('message', handleMessage);
+
+    // Listen on document for React Native WebView messages (Android/iOS)
+    document.addEventListener('message', handleMessage as any);
+
+    // React Native WebView specific: Listen for messages sent via injectedJavaScript
+    // These arrive as custom events on window
+    if (typeof (window as any).ReactNativeWebView !== 'undefined') {
+      console.log('🔧 React Native WebView detected - setting up RN-specific handler');
+      // RN WebView is available - messages might come through differently
+    }
+
+    console.log('📨 PostMessage listeners initialized (window + document)');
   }
 
   /**
@@ -677,6 +708,12 @@ class PaDIPSApp {
           console.log('⌨️ [3] Top-Bottom stereo toggled');
           break;
 
+        case '4':
+          // Toggle Side-by-Side VR Stereo (for Cardboard)
+          this.toggleStereoMode(StereoMode.SIDE_BY_SIDE);
+          console.log('⌨️ [4] Side-by-Side VR stereo toggled');
+          break;
+
         case 'a':
           // Toggle Anaglyph Stereo
           this.toggleStereoMode(StereoMode.ANAGLYPH);
@@ -728,6 +765,7 @@ class PaDIPSApp {
     console.log('  [N] New simulation');
     console.log('  [G] Toggle Gravity (Down ↔ Zero)');
     console.log('  [3] Top-Bottom 3D stereo (repeat=off)');
+    console.log('  [4] Side-by-Side VR stereo (repeat=off)');
     console.log('  [A] Anaglyph stereo (repeat=off)');
     console.log('  [T] Turn speed (0x→1x→2x→3x→4x→0x)');
     console.log('  [W] Wireframe (repeat=shaded)');
@@ -745,6 +783,12 @@ class PaDIPSApp {
   private toggleStereoMode(mode: StereoMode): void {
     const currentMode = this.sceneManager.getStereoMode();
     const newMode = currentMode === mode ? StereoMode.OFF : mode;
+
+    console.log('🔄 Toggle Stereo Mode:', {
+      requested: mode,
+      current: currentMode,
+      newMode: newMode
+    });
 
     this.sceneManager.setStereoMode(newMode);
 
@@ -1225,6 +1269,11 @@ class PaDIPSApp {
       this.walls,
       this.global
     );
+
+    // Restore simulation settings from state (persistent across resets)
+    this.physicsEngine.setCalcFactor(this.simulationState.calcFactor);
+    this.physicsEngine.setCollisionsEnabled(this.simulationState.collisionsEnabled);
+    console.log('⚙️ Simulation settings restored: CalcFactor=', this.simulationState.calcFactor, 'Collisions=', this.simulationState.collisionsEnabled);
 
     // Restore grid configuration from state (persistent across resets)
     if (this.visualizationState.gridEnabled) {

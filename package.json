@@ -25,6 +25,7 @@
     "ios": "expo run:ios",
     "web": "npm run prepare-web && expo start --web",
     "clean": "rm -rf public/ && echo '✓ Cleaned public/'",
+    "clean-start": "bash scripts/clean-and-start.sh",
     "build": "bash scripts/build-and-deploy.sh",
     "prepare-web": "bash scripts/build-and-deploy.sh"
   },

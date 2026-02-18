@@ -46,13 +46,23 @@ Cross-platform app (iOS, Android, Web) with Three.js WebView/iframe integration.
 - Beleuchtete Kugeln (Phong-Shading)
 - Wireframe & Point-Modus
 - Transparente Würfelwände mit gelben Kanten
-- **3D-Stereo**: Anaglyph (Rot-Blau) & Top-Bottom
+- **3D-Stereo**: Anaglyph (Rot-Blau), Top-Bottom & **Side-by-Side (VR)**
 - 166 FPS @ 30 Bälle, 36 FPS @ 1000 Bälle (mit Grid)
 
 ✅ **Cross-Platform**
 - **Web**: iframe → webpack-gebaute App
 - **iOS/Android**: WebView → assets
 - **Single Source**: Eine Three.js Codebase
+
+✅ **Mobile UI** 📱
+- **Portrait**: Stats + Square WebView + Scrollable Controls
+- **Landscape**: Sidebar (left) + Large WebView (right)
+- **VR Cardboard**: Auto-activates with Side-by-Side stereo
+  - Fullscreen immersive view
+  - Tap indicators (fade after 3s)
+  - Overlay menu (semi-transparent)
+- **Responsive**: Auto-detects orientation
+- **Stereo modes adapt**: Based on orientation (Portrait/Landscape/VR)
 
 ---
 

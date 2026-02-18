@@ -33,6 +33,7 @@ export enum StereoMode {
   OFF = 'off',
   ANAGLYPH = 'anaglyph',
   TOP_BOTTOM = 'topbottom',
+  SIDE_BY_SIDE = 'sidebyside',
 }
 
 // Collision detection method

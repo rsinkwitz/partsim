@@ -21,9 +21,9 @@ if [ -f "dist/renderer.bundle.js" ]; then
   cp dist/index.html ../assets/webapp/index.html
   echo "✓ Copied index.html to assets/webapp/"
 
-  # Copy bundle as .txt for Metro bundler (mobile)
-  cp ../assets/webapp/renderer.bundle.js ../assets/webapp/renderer.bundle.js.txt
-  echo "✓ Copied as .txt file for Metro"
+  # Copy bundle as .txt for Metro bundler (mobile) with CACHE BUSTING
+  # Use Python script to add timestamp comment reliably
+  python3 ../scripts/cache-bust.py ../assets/webapp/renderer.bundle.js ../assets/webapp/renderer.bundle.js.txt
 
   # Copy to public for Expo Web (single HTML file as cube.html)
   mkdir -p ../public
