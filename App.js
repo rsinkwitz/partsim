@@ -508,6 +508,18 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           console.log("Run: npx expo start -c");
         }
 
+        try {
+          const texture2 = Asset.fromModule(require("./assets/webapp/textures/rosendal_plains_2_1k.hdr"));
+          await texture2.downloadAsync();
+          await FileSystem.copyAsync({
+            from: texture2.localUri,
+            to: `${texturesDir}rosendal_plains_2_1k.hdr`
+          });
+          console.log("✓ Copied: rosendal_plains_2_1k.hdr");
+        } catch (err) {
+          console.warn("Could not copy texture:", err.message);
+        }
+
         const indexPath = `${tempDir}index.html`;
         console.log("Loading webapp from:", indexPath);
         setWebAppUri(indexPath);

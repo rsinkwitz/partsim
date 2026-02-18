@@ -810,6 +810,13 @@ export class SceneManager {
   }
 
   /**
+   * Get scene
+   */
+  getScene(): THREE.Scene {
+    return this.scene;
+  }
+
+  /**
    * Dispose resources
    */
   dispose(): void {

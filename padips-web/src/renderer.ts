@@ -12,6 +12,13 @@ import { PhysicsEngine } from './simulation/PhysicsEngine';
 import { SceneManager } from './rendering/SceneManager';
 import { generateBalls, DEFAULT_BALL_PARAMS } from './utils/BallGenerator';
 import type { BallGenerationParams } from './utils/BallGenerator';
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
+
+let silverMaterial: THREE.MeshStandardMaterial = new THREE.MeshStandardMaterial({
+  color: 0xc0c0c0,
+  roughness: 0.05,
+  metalness: 1.0
+});
 
 class PaDIPSApp {
   private sceneManager: SceneManager;
@@ -82,6 +89,96 @@ class PaDIPSApp {
 
     // Setup PostMessage listener for external control (React Native/iframe)
     this.setupPostMessageListener();
+
+    console.log('INIT: Cube created, now loading HDR texture...');
+
+    // Load HDR texture in background for Mirror Cube reflections
+    const loadEnvironmentTexture = async () => {
+    try {
+      console.log('HDR: Loading environment texture...');
+      const loader = new RGBELoader();
+
+      const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
+      const texturePath = 'textures/rosendal_plains_2_1k.hdr';
+      const fullTexturePath = baseUrl + texturePath;
+
+      // Use XMLHttpRequest instead of fetch (fetch doesn't work with file:// in Android WebView)
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', fullTexturePath, true);
+        xhr.responseType = 'arraybuffer';
+
+        xhr.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percent = Math.round((event.loaded / event.total) * 100);
+            if (percent % 25 === 0) { // Log every 25%
+              console.log('HDR: Loading... ' + percent + '%');
+            }
+          }
+        };
+
+        xhr.onload = () => {
+          // iOS WebView returns status 0 for file:// URLs even on success
+          // Check if we have valid data instead
+          const buffer = xhr.response as ArrayBuffer;
+
+          if ((xhr.status === 200 || xhr.status === 0) && buffer && buffer.byteLength > 0) {
+            try {
+              console.log('HDR: Parsing buffer (' + Math.round(buffer.byteLength / 1024) + ' KB)...');
+              const textureData = loader.parse(buffer);
+
+              const texture = new THREE.DataTexture(
+                textureData.data,
+                textureData.width,
+                textureData.height,
+                THREE.RGBAFormat,
+                textureData.type
+              );
+              texture.minFilter = THREE.LinearFilter;
+              texture.magFilter = THREE.LinearFilter;
+              texture.generateMipmaps = false;
+              texture.needsUpdate = true;
+
+              texture.mapping = THREE.EquirectangularReflectionMapping;
+              this.sceneManager.getScene().environment = texture;
+
+              silverMaterial.envMap = texture;
+              silverMaterial.envMapIntensity = 1.0;
+              silverMaterial.metalness = 1.0;
+              silverMaterial.roughness = 0.05;
+              silverMaterial.needsUpdate = true;
+
+              console.log('HDR: ✓ Environment texture loaded successfully');
+              resolve(texture);
+            } catch (parseError) {
+              console.log('HDR: ERROR - Parse failed:', parseError);
+              reject(parseError);
+            }
+          } else {
+            console.log('HDR: ERROR - HTTP status:', xhr.status, 'Buffer size:', buffer ? buffer.byteLength : 0);
+            reject(new Error('HTTP ' + xhr.status + ' or empty buffer'));
+          }
+        };
+
+        xhr.onerror = () => {
+          console.log('HDR: ERROR - XMLHttpRequest failed');
+          reject(new Error('XMLHttpRequest failed'));
+        };
+
+        xhr.send();
+      });
+    } catch (e) {
+      console.log('HDR: Exception:', e);
+      return Promise.reject(e);
+    }
+    };
+
+    console.log('INIT: Calling loadEnvironmentTexture...');
+    loadEnvironmentTexture().catch(error => {
+    console.log('HDR: Final catch, error:', error);
+    });
+    console.log('INIT: loadEnvironmentTexture called');
+
   }
 
   /**
