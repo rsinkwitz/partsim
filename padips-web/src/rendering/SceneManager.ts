@@ -557,21 +557,25 @@ export class SceneManager {
       const height = window.innerHeight;
       const halfWidth = width / 2;
 
-      // Detect platform: Mobile VR needs 1:1 aspect, Web/Projector needs 1/2 width
-      // Mobile VR: Each eye gets full height (halfWidth / height ≈ 1 for square screens)
-      // Web/Projector: Each eye gets half width relative to full screen (halfWidth / height < 0.5)
+      // Detect platform:
+      // - Mobile VR (React Native WebView): Each eye 1:1 aspect (for Cardboard headset)
+      // - Web/Projector (Browser): Each eye 1/2 width aspect (projector will stretch to full width)
 
-      // Simple heuristic: If in portrait or very wide screen, assume Web/Projector
-      // Otherwise assume Mobile VR
-      const isMobileVR = (width / height) < 2.0; // Mobile landscape typically ~16:9 (1.77)
+      // Check if running in React Native WebView
+      const isReactNativeWebView = !!(window as any).ReactNativeWebView;
 
       let aspectPerEye: number;
-      if (isMobileVR) {
-        // Mobile VR: Use full viewport aspect (1:1 for square-ish screens)
+      if (isReactNativeWebView) {
+        // Mobile VR (React Native): Use full aspect for 1:1 (square per eye)
         aspectPerEye = halfWidth / height;
       } else {
-        // Web/Projector: Use half-width aspect (compressed for projector stretching)
-        aspectPerEye = (halfWidth / 2) / height; // Half of half-width
+        // Web/Projector (Browser): Cube should be 1/2 as wide as it is tall
+        // For aspect ratio width:height = 1:2, we need aspect = 0.5
+        // Since aspect = width/height, and we want width = height/2
+        // aspect = (height/2) / height = 0.5
+        // But we're rendering in halfWidth viewport, so:
+        // aspect = height / (2 * halfWidth) to get narrow cubes
+        aspectPerEye = height / (2 * halfWidth);
       }
 
       // Update camera aspect for each eye before updating StereoCamera
@@ -589,8 +593,7 @@ export class SceneManager {
           width,
           height,
           halfWidth,
-          screenRatio: (width / height).toFixed(2),
-          isMobileVR,
+          platform: isReactNativeWebView ? 'Mobile VR (React Native)' : 'Web/Projector (Browser)',
           aspectPerEye: aspectPerEye.toFixed(3),
           eyeSep: this.stereoCamera.eyeSep,
           cameraL: !!this.stereoCamera.cameraL,

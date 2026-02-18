@@ -240,7 +240,6 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
   }, []);
 
   // Auto-activate VR mode when Side-by-Side Stereo + Landscape (Mobile only)
-  // OR auto-activate Side-by-Side when going to Landscape
   useEffect(() => {
     if (Platform.OS !== "web") {
       const shouldBeVR = stereoMode === 'sidebyside' && !isPortrait;
@@ -265,13 +264,6 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
             sendToWebView('setStereoMode', 'off');
           }
         }
-      }
-
-      // Auto-activate Side-by-Side when going to Landscape (if not already in VR)
-      if (!isPortrait && stereoMode === 'off' && !isVRMode) {
-        console.log('📱 Landscape detected → Auto-activating Side-by-Side VR');
-        setStereoMode('sidebyside');
-        // WebView update will be sent by the effect above when stereoMode changes
       }
     }
   }, [stereoMode, isPortrait, isVRMode]);
