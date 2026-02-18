@@ -248,7 +248,7 @@ export default function ControlsPanel({
         <View style={styles.pickerContainer}>
           <Text style={styles.label}>Draw Mode</Text>
           <View style={styles.radioGroup}>
-            {['LIGHTED', 'WIREFRAME', 'POINTS'].map(mode => (
+            {['LIGHTED', 'WIREFRAME', 'POINTS', 'SILVER'].map(mode => (
               <TouchableOpacity
                 key={mode}
                 style={styles.radioOption}

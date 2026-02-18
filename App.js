@@ -508,6 +508,13 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           console.log("Run: npx expo start -c");
         }
 
+        // Kopiere Texturen
+        const texturesDir = `${tempDir}textures/`;
+        const texturesDirInfo = await FileSystem.getInfoAsync(texturesDir);
+        if (!texturesDirInfo.exists) {
+          await FileSystem.makeDirectoryAsync(texturesDir, { intermediates: true });
+        }
+
         try {
           const texture2 = Asset.fromModule(require("./assets/webapp/textures/rosendal_plains_2_1k.hdr"));
           await texture2.downloadAsync();
@@ -925,6 +932,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
                 <option value="LIGHTED">Lighted</option>
                 <option value="WIREFRAME">Wireframe</option>
                 <option value="POINTS">Points</option>
+                <option value="SILVER">Silver</option>
               </select>
             </View>
 

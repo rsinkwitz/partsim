@@ -42,6 +42,10 @@ export class SceneManager {
   private initialCameraDistance: number = 0; // Initiale Distanz von Kamera zu Target
   private currentCubeDepth: number = 0; // Aktueller Cube Depth Wert (-20 bis +20)
 
+  // Silver material for SILVER draw mode
+  private silverMaterial: THREE.MeshStandardMaterial | null = null;
+  private envMap: THREE.Texture | null = null;
+
   constructor(canvas: HTMLCanvasElement) {
     // Scene
     this.scene = new THREE.Scene();
@@ -175,6 +179,30 @@ export class SceneManager {
   }
 
   /**
+   * Set environment map for silver material
+   */
+  setEnvironmentMap(texture: THREE.Texture): void {
+    this.envMap = texture;
+
+    // Initialize silver material if not already done
+    if (!this.silverMaterial) {
+      this.silverMaterial = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        metalness: 1.0,
+        roughness: 0.05,
+        envMap: texture,
+        envMapIntensity: 1.0,
+      });
+    } else {
+      this.silverMaterial.envMap = texture;
+      this.silverMaterial.envMapIntensity = 1.0;
+      this.silverMaterial.needsUpdate = true;
+    }
+
+    console.log('✨ Silver material environment map set');
+  }
+
+  /**
    * Create ball mesh
    */
   private createBallMesh(ball: Ball): THREE.Mesh | THREE.Points {
@@ -232,6 +260,36 @@ export class SceneManager {
           emissiveIntensity: 0.05, // Leichtes Eigenleuchten
         });
         mesh = new THREE.Mesh(lightedGeometry, material);
+        mesh.position.copy(ball.position);
+        break;
+
+      case DrawMode.SILVER:
+        const silverGeometry = new THREE.SphereGeometry(
+          ball.radius,
+          this.sphereSegments,
+          this.sphereSegments
+        );
+        // Create silver material - works with or without envMap
+        if (this.envMap) {
+          // With envMap: Fully metallic for realistic reflections
+          material = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            metalness: 1.0,
+            roughness: 0.05,
+            envMap: this.envMap,
+            envMapIntensity: 1.0,
+          });
+        } else {
+          // Without envMap: Less metallic to show silver color
+          material = new THREE.MeshStandardMaterial({
+            color: 0xc0c0c0,  // Silver color
+            metalness: 0.8,    // High but not full metalness
+            roughness: 0.15,   // Slightly higher roughness
+            emissive: 0x202020, // Slight glow to ensure visibility
+            emissiveIntensity: 0.1,
+          });
+        }
+        mesh = new THREE.Mesh(silverGeometry, material);
         mesh.position.copy(ball.position);
         break;
     }

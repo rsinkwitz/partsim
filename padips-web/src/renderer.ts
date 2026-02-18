@@ -128,7 +128,7 @@ class PaDIPSApp {
               const textureData = loader.parse(buffer);
 
               const texture = new THREE.DataTexture(
-                textureData.data,
+                textureData.data as any,
                 textureData.width,
                 textureData.height,
                 THREE.RGBAFormat,
@@ -140,6 +140,15 @@ class PaDIPSApp {
               texture.needsUpdate = true;
 
               texture.mapping = THREE.EquirectangularReflectionMapping;
+
+              // Shift the equirectangular map horizontally to rotate sky upward
+              // For equirectangular: offset.x shifts horizontally (rotation around up axis)
+              // We need to shift by 0.25 (90 degrees) to rotate the map
+              texture.offset.set(0.25, 0); // Shift horizontally by 25% (90°)
+              texture.repeat.set(1, 1);
+              texture.wrapS = THREE.RepeatWrapping;
+              texture.wrapT = THREE.ClampToEdgeWrapping;
+
               this.sceneManager.getScene().environment = texture;
 
               silverMaterial.envMap = texture;
@@ -148,7 +157,10 @@ class PaDIPSApp {
               silverMaterial.roughness = 0.05;
               silverMaterial.needsUpdate = true;
 
-              console.log('HDR: ✓ Environment texture loaded successfully');
+              // Pass environment map to SceneManager for SILVER draw mode
+              this.sceneManager.setEnvironmentMap(texture);
+
+              console.log('HDR texture loaded and applied to silver material + SceneManager');
               resolve(texture);
             } catch (parseError) {
               console.log('HDR: ERROR - Parse failed:', parseError);

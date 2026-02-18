@@ -26,6 +26,7 @@ export enum DrawMode {
   LIGHTED = 'LIGHTED',
   POINTS = 'POINTS',
   TEXTURED = 'TEXTURED',
+  SILVER = 'SILVER',
 }
 
 // 3D Stereo Modes
