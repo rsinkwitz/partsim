@@ -378,8 +378,16 @@ class PaDIPSApp {
             break;
 
           case 'setAutoRotation':
-            this.sceneManager.setAutoRotation(data.params.enabled, data.params.speed || 1);
-            console.log('🔄 Auto-rotation:', data.params.enabled ? `ON (${data.params.speed}x)` : 'OFF');
+            // Update internal turnSpeed state to match slider
+            if (data.params.enabled) {
+              this.turnSpeed = data.params.speed || 1;
+              this.sceneManager.setAutoRotation(true, this.turnSpeed);
+              console.log('🔄 Auto-rotation: ON (' + this.turnSpeed + 'x) from slider');
+            } else {
+              this.turnSpeed = 0;
+              this.sceneManager.setAutoRotation(false);
+              console.log('🔄 Auto-rotation: OFF from slider');
+            }
             break;
 
           // Forwarded keyboard events
@@ -847,6 +855,23 @@ class PaDIPSApp {
             this.sceneManager.setAutoRotation(true, this.turnSpeed);
             console.log(`⌨️ [T] Turn mode: ${this.turnSpeed}x speed`);
           }
+
+          // Send immediate feedback to UI (don't wait for next stats cycle)
+          console.log('📤 Sending turnSpeed update to UI:', this.turnSpeed);
+          const turnSpeedUpdate = {
+            type: 'turnSpeedUpdate',
+            turnSpeed: this.turnSpeed,
+          };
+
+          // For iframe (Web)
+          if (window.parent !== window) {
+            window.parent.postMessage(JSON.stringify(turnSpeedUpdate), '*');
+          }
+
+          // For React Native WebView
+          if ((window as any).ReactNativeWebView) {
+            (window as any).ReactNativeWebView.postMessage(JSON.stringify(turnSpeedUpdate));
+          }
           break;
 
         case 'g':
@@ -1260,6 +1285,7 @@ class PaDIPSApp {
       // Rendering & Physics (for keyboard shortcut feedback)
       drawMode: this.sceneManager.getDrawMode(),
       gravityPreset: gravityPreset,
+      turnSpeed: this.turnSpeed,
     };
 
     // For iframe (Web)

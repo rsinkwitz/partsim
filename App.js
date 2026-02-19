@@ -158,6 +158,15 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
               setStereoMode(data.stereoMode);
               console.log('🕶️ UI: Stereo mode updated to:', data.stereoMode);
             }
+          } else if (data.type === 'turnSpeedUpdate') {
+            // Update turn speed (e.g., via keyboard shortcut [T])
+            if (data.turnSpeed !== undefined) {
+              console.log('📥 Received immediate turnSpeed update:', data.turnSpeed);
+              setTurnSpeed(prev => {
+                console.log('  Previous turnSpeed:', prev, '→ New:', data.turnSpeed);
+                return data.turnSpeed;
+              });
+            }
           }
         } catch (e) {
           // Ignore non-JSON messages
@@ -409,6 +418,12 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
         setIsRunning(data.isRunning !== undefined ? data.isRunning : true);
         setChecks(data.checks || 0);
 
+        // Update turnSpeed from keyboard shortcut 't'
+        if (data.turnSpeed !== undefined) {
+          console.log('📥 Received turnSpeed update:', data.turnSpeed);
+          setTurnSpeed(data.turnSpeed);
+        }
+
         const newBallCount = data.ballCount || 30;
         setActualBallCount(prevActual => {
           if (newBallCount !== prevActual && newBallCount === ballCount) {
@@ -418,6 +433,16 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
             return newBallCount;
           }
           return prevActual;
+        });
+      }
+
+      // Immediate turnSpeed update from 't' keyboard shortcut
+      if (data.type === 'turnSpeedUpdate') {
+        console.log('📥 Received immediate turnSpeed update:', data.turnSpeed);
+        // Force update using callback to ensure React applies the change
+        setTurnSpeed(prev => {
+          console.log('  Previous turnSpeed:', prev, '→ New:', data.turnSpeed);
+          return data.turnSpeed;
         });
       }
 
@@ -572,6 +597,26 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
     }
   };
 
+  // ===== PERSISTENT WEBVIEW (rendered once, positioned differently per mode) =====
+  // Only for Mobile (not Web - Web uses iframe)
+  const renderPersistentWebView = () => (
+    <WebView
+      ref={webViewRef}
+      source={{ uri: webAppUri }}
+      style={{ flex: 1 }}
+      originWhitelist={['*', 'file://', 'http://', 'https://']}
+      javaScriptEnabled={true}
+      domStorageEnabled={true}
+      allowsInlineMediaPlayback={true}
+      mediaPlaybackRequiresUserAction={false}
+      allowFileAccess={true}
+      allowUniversalAccessFromFileURLs={true}
+      allowFileAccessFromFileURLs={true}
+      mixedContentMode="always"
+      injectedJavaScript={injectedJavaScript}
+      onMessage={handleWebViewMessage}
+    />
+  );
 
   // Auf Web verwenden wir einen iframe statt WebView für bessere Kompatibilität
   if (Platform.OS === "web") {
@@ -1108,23 +1153,8 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
     return (
       <SafeAreaView style={styles.vrContainer} edges={[]}>
         <StatusBar barStyle="light-content" backgroundColor="#000" />
-        {/* Fullscreen WebView */}
-        <WebView
-          ref={webViewRef}
-          source={{ uri: webAppUri }}
-          style={styles.vrWebView}
-          originWhitelist={['*', 'file://', 'http://', 'https://']}
-          javaScriptEnabled={true}
-          domStorageEnabled={true}
-          allowsInlineMediaPlayback={true}
-          mediaPlaybackRequiresUserAction={false}
-          allowFileAccess={true}
-          allowUniversalAccessFromFileURLs={true}
-          allowFileAccessFromFileURLs={true}
-          mixedContentMode="always"
-          injectedJavaScript={injectedJavaScript}
-          onMessage={handleWebViewMessage}
-        />
+        {/* Fullscreen WebView - using persistent WebView */}
+        {renderPersistentWebView()}
 
         {/* VR Tap Indicators (fade after 3s) - only shown initially */}
         <VRIndicators
@@ -1338,6 +1368,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
     );
   }
 
+
   // Portrait Mode - Stats + WebView (square) + Controls (scrollable)
   if (isPortrait) {
     return (
@@ -1357,22 +1388,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
 
         {/* WebView - Square, centered */}
         <View style={styles.webViewContainerPortrait}>
-          <WebView
-            ref={webViewRef}
-            source={{ uri: webAppUri }}
-            style={styles.webViewPortrait}
-            originWhitelist={['*', 'file://', 'http://', 'https://']}
-            javaScriptEnabled={true}
-            domStorageEnabled={true}
-            allowsInlineMediaPlayback={true}
-            mediaPlaybackRequiresUserAction={false}
-            allowFileAccess={true}
-            allowUniversalAccessFromFileURLs={true}
-            allowFileAccessFromFileURLs={true}
-            mixedContentMode="always"
-            injectedJavaScript={injectedJavaScript}
-            onMessage={handleWebViewMessage}
-          />
+          {renderPersistentWebView()}
         </View>
 
         {/* Controls below - scrollable */}
@@ -1474,30 +1490,10 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
         />
       </View>
 
-      {/* WebView on right */}
-      <WebView
-        ref={webViewRef}
-        source={{ uri: webAppUri }}
-        style={styles.webViewLandscape}
-        originWhitelist={['*', 'file://', 'http://', 'https://']}
-        javaScriptEnabled={true}
-        domStorageEnabled={true}
-        allowsInlineMediaPlayback={true}
-        mediaPlaybackRequiresUserAction={false}
-        allowFileAccess={true}
-        allowUniversalAccessFromFileURLs={true}
-        allowFileAccessFromFileURLs={true}
-        mixedContentMode="always"
-        injectedJavaScript={injectedJavaScript}
-        onMessage={handleWebViewMessage}
-        onError={(syntheticEvent) => {
-          const { nativeEvent } = syntheticEvent;
-          console.error("WebView error: ", nativeEvent);
-        }}
-        onLoadEnd={() => {
-          console.log("WebView loaded successfully");
-        }}
-      />
+      {/* WebView on right - using persistent WebView */}
+      <View style={{ flex: 1 }}>
+        {renderPersistentWebView()}
+      </View>
     </SafeAreaView>
   );
 }
