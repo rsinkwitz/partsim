@@ -49,6 +49,8 @@ export default function ControlsPanel({
   setEyeSeparation,
   cubeDepth,
   setCubeDepth,
+  turnSpeed,
+  setTurnSpeed,
 
   // Callbacks
   sendToWebView,
@@ -374,6 +376,28 @@ export default function ControlsPanel({
             </View>
           </>
         )}
+
+        {/* Turn Speed Slider - always visible */}
+        <View style={styles.sliderContainer}>
+          <Text style={styles.label}>Turn Speed: {turnSpeed === 0 ? 'OFF' : `${turnSpeed}x`}</Text>
+          <Slider
+            style={styles.slider}
+            minimumValue={0}
+            maximumValue={4}
+            step={1}
+            value={turnSpeed}
+            onValueChange={(val) => {
+              setTurnSpeed(val);
+              if (val === 0) {
+                sendToWebView('setAutoRotation', { enabled: false });
+              } else {
+                sendToWebView('setAutoRotation', { enabled: true, speed: val });
+              }
+            }}
+            minimumTrackTintColor="#FF9800"
+            maximumTrackTintColor="#ddd"
+          />
+        </View>
       </View>
 
       {/* Keyboard Shortcuts Info */}

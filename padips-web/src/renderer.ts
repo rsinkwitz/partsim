@@ -99,7 +99,7 @@ class PaDIPSApp {
       const loader = new RGBELoader();
 
       const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
-      const texturePath = 'textures/rosendal_plains_2_1k.hdr';
+      const texturePath = 'textures/rosendal_plains_2_1k-rot.hdr';
       const fullTexturePath = baseUrl + texturePath;
 
       // Use XMLHttpRequest instead of fetch (fetch doesn't work with file:// in Android WebView)
@@ -375,6 +375,11 @@ class PaDIPSApp {
           case 'setCubeDepth':
             this.sceneManager.setCubeDepth(data.params);
             console.log('📦 Cube depth:', data.params.toFixed(1), 'm');
+            break;
+
+          case 'setAutoRotation':
+            this.sceneManager.setAutoRotation(data.params.enabled, data.params.speed || 1);
+            console.log('🔄 Auto-rotation:', data.params.enabled ? `ON (${data.params.speed}x)` : 'OFF');
             break;
 
           // Forwarded keyboard events
@@ -862,6 +867,12 @@ class PaDIPSApp {
           console.log('⌨️ [P] Points toggled');
           break;
 
+        case 'x':
+          // Toggle coordinate axes
+          this.sceneManager.toggleAxes();
+          console.log('⌨️ [X] Coordinate axes toggled');
+          break;
+
         case 'f1':
           // Toggle key help
           e.preventDefault();
@@ -876,6 +887,7 @@ class PaDIPSApp {
     console.log('  [S] Toggle Lighted ↔ Silver');
     console.log('  [N] New simulation');
     console.log('  [G] Toggle Gravity (Down ↔ Zero)');
+    console.log('  [X] Toggle Coordinate Axes (X=red, Y=green, Z=blue)');
     console.log('  [3] Top-Bottom 3D stereo (repeat=off)');
     console.log('  [4] Side-by-Side VR stereo (repeat=off)');
     console.log('  [A] Anaglyph stereo (repeat=off)');
@@ -1225,16 +1237,16 @@ class PaDIPSApp {
     // Get current gravity preset
     const currentAccel = this.global.acceleration;
     let gravityPreset = 'ZERO';
-    // Match the axis mapping from GlobalParams.setGravityPreset:
-    // DOWN: (0, 0, -mag), UP: (0, 0, +mag)
+    // Match the axis mapping from GlobalParams.setGravityPreset (standard Y-up system):
+    // DOWN: (0, -mag, 0), UP: (0, +mag, 0)
     // LEFT: (-mag, 0, 0), RIGHT: (+mag, 0, 0)
-    // FRONT: (0, -mag, 0), REAR: (0, +mag, 0)
-    if (currentAccel.z < -0.1) gravityPreset = 'DOWN';
-    else if (currentAccel.z > 0.1) gravityPreset = 'UP';
+    // FRONT: (0, 0, +mag), REAR: (0, 0, -mag)
+    if (currentAccel.y < -0.1) gravityPreset = 'DOWN';
+    else if (currentAccel.y > 0.1) gravityPreset = 'UP';
     else if (currentAccel.x < -0.1) gravityPreset = 'LEFT';
     else if (currentAccel.x > 0.1) gravityPreset = 'RIGHT';
-    else if (currentAccel.y < -0.1) gravityPreset = 'FRONT';
-    else if (currentAccel.y > 0.1) gravityPreset = 'REAR';
+    else if (currentAccel.z > 0.1) gravityPreset = 'FRONT';
+    else if (currentAccel.z < -0.1) gravityPreset = 'REAR';
 
     const state = {
       type: 'stateUpdate',

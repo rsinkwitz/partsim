@@ -23,7 +23,7 @@ module.exports = {
     rules: [
       {
         test: /\.ts$/,
-        exclude: /(node_modules|bower_components)/,
+        exclude: /(node_modules|bower_components|renderer-cubes\.ts)/,
         use: {
           loader: 'ts-loader'
         }

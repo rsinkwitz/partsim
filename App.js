@@ -61,6 +61,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
   const [eyeSeparation, setEyeSeparation] = useState(8.0); // in cm
   // Start with 0.01 instead of 0 to work around React Native Web Slider rendering bug
   const [cubeDepth, setCubeDepth] = useState(0.01);
+  const [turnSpeed, setTurnSpeed] = useState(0); // Auto-rotation speed: 0=off, 1-4=speed multiplier
 
   // WebView loaded state for initial cube depth fix
   const [webViewLoaded, setWebViewLoaded] = useState(false);
@@ -366,6 +367,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
     setStereoMode('off');
     setEyeSeparation(8);
     setCubeDepth(0);
+    setTurnSpeed(0);
 
     // Send default values to WebView
     sendToWebView('setBallCount', 100);
@@ -385,6 +387,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
     sendToWebView('setStereoMode', 'off');
     sendToWebView('setEyeSeparation', 0.08);
     sendToWebView('setCubeDepth', 0);
+    sendToWebView('setAutoRotation', { enabled: false });
 
     // Generate new balls with default parameters
     sendToWebView('new');
@@ -516,13 +519,13 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
         }
 
         try {
-          const texture2 = Asset.fromModule(require("./assets/webapp/textures/rosendal_plains_2_1k.hdr"));
+          const texture2 = Asset.fromModule(require("./assets/webapp/textures/rosendal_plains_2_1k-rot.hdr"));
           await texture2.downloadAsync();
           await FileSystem.copyAsync({
             from: texture2.localUri,
-            to: `${texturesDir}rosendal_plains_2_1k.hdr`
+            to: `${texturesDir}rosendal_plains_2_1k-rot.hdr`
           });
-          console.log("✓ Copied: rosendal_plains_2_1k.hdr");
+          console.log("✓ Copied: rosendal_plains_2_1k-rot.hdr");
         } catch (err) {
           console.warn("Could not copy texture:", err.message);
         }
@@ -1044,6 +1047,28 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
                 <Text style={styles.sliderLabelText}>+2.0m (farther)</Text>
               </View>
             </View>
+
+            <View style={styles.sliderContainer}>
+              <Text style={styles.label}>Turn Speed: {turnSpeed === 0 ? 'OFF' : `${turnSpeed}x`}</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={0}
+                maximumValue={4}
+                step={1}
+                value={turnSpeed}
+                onValueChange={setTurnSpeed}
+                onSlidingComplete={(value) => {
+                  if (value === 0) {
+                    sendToIframe('setAutoRotation', { enabled: false });
+                  } else {
+                    sendToIframe('setAutoRotation', { enabled: true, speed: value });
+                  }
+                }}
+                minimumTrackTintColor="#FF9800"
+                maximumTrackTintColor="#ddd"
+                thumbTintColor="#FF9800"
+              />
+            </View>
           </View>
 
           {/* Keyboard Shortcuts */}
@@ -1156,8 +1181,22 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
 
           {/* Compact VR Controls - 2-column Toggle Layout */}
           <View style={{ padding: 8, backgroundColor: '#f9f9f9', borderRadius: 6, marginTop: 8 }}>
-            {/* Row 1: Gravity & Grid */}
+            {/* Row 1: Silver & Gravity */}
             <View style={styles.vrToggleRow}>
+              <View style={styles.vrToggleItem}>
+                <Text style={styles.vrToggleLabel}>✨ Silver</Text>
+                <Switch
+                  value={drawMode === 'SILVER'}
+                  onValueChange={(val) => {
+                    const newMode = val ? 'SILVER' : 'LIGHTED';
+                    setDrawMode(newMode);
+                    sendToWebView('setDrawMode', newMode);
+                  }}
+                  trackColor={{ false: '#ccc', true: '#4CAF50' }}
+                  thumbColor={drawMode === 'SILVER' ? '#fff' : '#f4f3f4'}
+                />
+              </View>
+
               <View style={styles.vrToggleItem}>
                 <Text style={styles.vrToggleLabel}>🌍 Gravity</Text>
                 <Switch
@@ -1171,7 +1210,10 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
                   thumbColor={gravityPreset === 'DOWN' ? '#fff' : '#f4f3f4'}
                 />
               </View>
+            </View>
 
+            {/* Row 2: Grid & Checks */}
+            <View style={styles.vrToggleRow}>
               <View style={styles.vrToggleItem}>
                 <Text style={styles.vrToggleLabel}>🔲 Grid</Text>
                 <Switch
@@ -1188,10 +1230,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
                   thumbColor={gridEnabled ? '#fff' : '#f4f3f4'}
                 />
               </View>
-            </View>
 
-            {/* Row 2: Checks & Voxels */}
-            <View style={styles.vrToggleRow}>
               <View style={styles.vrToggleItem}>
                 <Text style={styles.vrToggleLabel}>🔍 Checks</Text>
                 <Switch
@@ -1204,7 +1243,10 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
                   thumbColor={showCollisionChecks ? '#fff' : '#f4f3f4'}
                 />
               </View>
+            </View>
 
+            {/* Row 3: Voxels (single item centered) */}
+            <View style={styles.vrToggleRow}>
               <View style={styles.vrToggleItem}>
                 <Text style={styles.vrToggleLabel}>📦 Voxels</Text>
                 <Switch
@@ -1219,7 +1261,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
               </View>
             </View>
 
-            {/* Row 3: Ball Count Buttons */}
+            {/* Ball Count Buttons */}
             <View style={{ marginTop: 12 }}>
               <Text style={styles.vrToggleLabel}>🎱 Balls: {actualBallCount}</Text>
               <View style={[styles.vrToggleRow, { marginTop: 4 }]}>
@@ -1265,6 +1307,29 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
                 minimumTrackTintColor="#2196F3"
                 maximumTrackTintColor="#ddd"
                 thumbTintColor="#2196F3"
+              />
+            </View>
+
+            {/* Turn Speed Slider */}
+            <View style={{ marginTop: 12 }}>
+              <Text style={styles.vrToggleLabel}>🔄 Turn: {turnSpeed === 0 ? 'OFF' : `${turnSpeed}x`}</Text>
+              <Slider
+                style={{ width: '100%', height: 30 }}
+                minimumValue={0}
+                maximumValue={4}
+                step={1}
+                value={turnSpeed}
+                onValueChange={(val) => {
+                  setTurnSpeed(val);
+                  if (val === 0) {
+                    sendToWebView('setAutoRotation', { enabled: false });
+                  } else {
+                    sendToWebView('setAutoRotation', { enabled: true, speed: val });
+                  }
+                }}
+                minimumTrackTintColor="#FF9800"
+                maximumTrackTintColor="#ddd"
+                thumbTintColor="#FF9800"
               />
             </View>
           </View>
@@ -1345,6 +1410,8 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           setEyeSeparation={setEyeSeparation}
           cubeDepth={cubeDepth}
           setCubeDepth={setCubeDepth}
+          turnSpeed={turnSpeed}
+          setTurnSpeed={setTurnSpeed}
           sendToWebView={sendToWebView}
           isPortrait={true}
         />
@@ -1400,6 +1467,8 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           setEyeSeparation={setEyeSeparation}
           cubeDepth={cubeDepth}
           setCubeDepth={setCubeDepth}
+          turnSpeed={turnSpeed}
+          setTurnSpeed={setTurnSpeed}
           sendToWebView={sendToWebView}
           isPortrait={false}
         />

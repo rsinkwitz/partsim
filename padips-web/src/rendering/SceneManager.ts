@@ -34,6 +34,10 @@ export class SceneManager {
   private showOccupiedVoxels: boolean = false;
   private showCollisionChecks: boolean = false;
 
+  // Coordinate axes visualization
+  private axesHelper: THREE.AxesHelper | null = null;
+  private showAxes: boolean = false;
+
   private drawMode: DrawMode = DrawMode.LIGHTED;
   private sphereSegments: number = 16;
   private wireframeSegments: number = 8; // Segments für Wireframe-Modus (4-32)
@@ -51,16 +55,16 @@ export class SceneManager {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x666666); // Grau wie im Original IRIX
 
-    // Camera (Z-Up coordinate system)
+    // Camera (Standard Three.js Y-Up coordinate system)
     this.camera = new THREE.PerspectiveCamera(
       60, // fov
       window.innerWidth / window.innerHeight, // aspect
       0.1, // near
       100 // far
     );
-    // Position camera straight from front, horizontal view
-    this.camera.position.set(0, -5, 0); // From front (Y=-5), at cube center height (Z=0)
-    this.camera.up.set(0, 0, 1); // Z-axis points up
+    // Position camera from front (standard Three.js: looking down -Z axis, Y is up)
+    this.camera.position.set(0, 0, 5); // From front (Z=5), centered
+    // camera.up defaults to (0, 1, 0) - Y-axis points up (Three.js standard)
     this.camera.lookAt(0, 0, 0);
 
     // Renderer
@@ -1140,6 +1144,37 @@ export class SceneManager {
       this.collisionChecksLines = null;
     }
     console.log('🔲 Show Collision Checks:', show);
+  }
+
+  /**
+   * Toggle coordinate axes visualization
+   */
+  toggleAxes(): void {
+    this.showAxes = !this.showAxes;
+
+    if (this.showAxes) {
+      // Create axes helper if it doesn't exist
+      if (!this.axesHelper) {
+        // Size 2.0 to make axes visible beyond the cube (cube radius = 1.518)
+        this.axesHelper = new THREE.AxesHelper(2.5);
+        // Axes colors: X=red, Y=green, Z=blue (Three.js default)
+      }
+      this.scene.add(this.axesHelper);
+      console.log('📐 Coordinate axes: ON (X=red, Y=green, Z=blue)');
+    } else {
+      // Remove axes from scene
+      if (this.axesHelper) {
+        this.scene.remove(this.axesHelper);
+      }
+      console.log('📐 Coordinate axes: OFF');
+    }
+  }
+
+  /**
+   * Get axes visibility state
+   */
+  getShowAxes(): boolean {
+    return this.showAxes;
   }
 
   /**

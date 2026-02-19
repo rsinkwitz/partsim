@@ -37,22 +37,22 @@ export class GlobalParams {
         this.acceleration.set(0, 0, 0);
         break;
       case 'DOWN':
-        this.acceleration.set(0, 0, -magnitude);
+        this.acceleration.set(0, -magnitude, 0); // Standard Y-up: DOWN = -Y
         break;
       case 'UP':
-        this.acceleration.set(0, 0, magnitude);
+        this.acceleration.set(0, magnitude, 0); // Standard Y-up: UP = +Y
         break;
       case 'LEFT':
-        this.acceleration.set(-magnitude, 0, 0);
+        this.acceleration.set(-magnitude, 0, 0); // LEFT = -X
         break;
       case 'RIGHT':
-        this.acceleration.set(magnitude, 0, 0);
+        this.acceleration.set(magnitude, 0, 0); // RIGHT = +X
         break;
       case 'FRONT':
-        this.acceleration.set(0, -magnitude, 0);
+        this.acceleration.set(0, 0, magnitude); // FRONT = +Z (toward camera)
         break;
       case 'REAR':
-        this.acceleration.set(0, magnitude, 0);
+        this.acceleration.set(0, 0, -magnitude); // REAR = -Z (away from camera)
         break;
       default:
         console.warn('Unknown gravity preset:', preset);
