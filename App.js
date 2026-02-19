@@ -30,6 +30,34 @@ export default function App() {
   );
 }
 
+// Persistent WebView Component - using React.memo to prevent unnecessary re-renders
+// The key prop ensures React keeps the same instance across parent changes
+const PersistentWebView = React.memo(({ webAppUri, webViewRef, injectedJavaScript, onMessage }) => {
+  if (!webAppUri) return null;
+
+  return (
+    <WebView
+      ref={webViewRef}
+      source={{ uri: webAppUri }}
+      style={{ flex: 1 }}
+      originWhitelist={['*', 'file://', 'http://', 'https://']}
+      javaScriptEnabled={true}
+      domStorageEnabled={true}
+      allowsInlineMediaPlayback={true}
+      mediaPlaybackRequiresUserAction={false}
+      allowFileAccess={true}
+      allowUniversalAccessFromFileURLs={true}
+      allowFileAccessFromFileURLs={true}
+      mixedContentMode="always"
+      injectedJavaScript={injectedJavaScript}
+      onMessage={onMessage}
+    />
+  );
+}, (prevProps, nextProps) => {
+  // Only re-render if webAppUri changes (which happens once on load)
+  return prevProps.webAppUri === nextProps.webAppUri;
+});
+
 function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setError, webViewRef }) {
   // UI State - Balls
   const [ballCount, setBallCount] = useState(30);
@@ -71,6 +99,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
   const [isVRMode, setIsVRMode] = useState(false);
   const [showVRMenu, setShowVRMenu] = useState(false);
   const [showVRIndicators, setShowVRIndicators] = useState(true);
+
 
   // Stats from WebView
   const [fps, setFps] = useState(0);
@@ -229,10 +258,16 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
   useEffect(() => {
     if (Platform.OS !== "web") {
       const updateOrientation = () => {
+        // Save state BEFORE orientation change (WebView will be remounted)
+        sendToWebView('saveState');
+
         const { width, height } = require('react-native').Dimensions.get('window');
         const portrait = height > width;
         setIsPortrait(portrait);
         console.log('📱 Orientation:', portrait ? 'Portrait' : 'Landscape');
+
+        // Note: restoreState is NOT called here - it happens automatically
+        // when WebView reloads and calls restoreStateFromStorage() on init
       };
 
       // Initial check
@@ -301,7 +336,11 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
       const message = JSON.stringify({ action, params });
       // Log UI→WebView messages to debug which controls work
       if (action !== 'setCalcFactor') { // CalcFactor spammt bei Slider-Bewegung
-        console.log('📤 UI→WebView:', action, params);
+        if (params === undefined) {
+          console.log('📤 UI→WebView:', action);
+        } else {
+          console.log('📤 UI→WebView:', action, params);
+        }
       }
       webViewRef.current.postMessage(message);
     }
@@ -418,11 +457,8 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
         setIsRunning(data.isRunning !== undefined ? data.isRunning : true);
         setChecks(data.checks || 0);
 
-        // Update turnSpeed from keyboard shortcut 't'
-        if (data.turnSpeed !== undefined) {
-          console.log('📥 Received turnSpeed update:', data.turnSpeed);
-          setTurnSpeed(data.turnSpeed);
-        }
+        // NOTE: turnSpeed is NOT in stateUpdate anymore
+        // It's sent separately via 'turnSpeedUpdate' when changed
 
         const newBallCount = data.ballCount || 30;
         setActualBallCount(prevActual => {
@@ -452,6 +488,77 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
 
       if (data.type === 'log') {
         console.log("📱 WebView:", data.message);
+      }
+
+      // WebView signals it's ready - resend all current settings
+      if (data.type === 'initialized') {
+        console.log('🎬 WebView initialized - resending settings...');
+        console.log('📊 Current UI state:', {
+          ballCount,
+          actualBallCount,
+          drawMode,
+          gridEnabled,
+          gridSegments,
+          showWorldGrid,
+          showOccupiedVoxels,
+          showCollisionChecks,
+          isRunning,
+        });
+
+        // Resend all current UI state to WebView
+        // Use longer timeout to ensure WebView is fully ready
+        setTimeout(() => {
+          // Ball parameters - use UI values, not actualBallCount
+          sendToWebView('setBallCount', ballCount);
+          sendToWebView('setMinRadius', minRadius / 100);
+          sendToWebView('setMaxRadius', maxRadius / 100);
+          sendToWebView('setMaxVelocity', maxVelocity);
+          sendToWebView('setElasticity', elasticity / 100);
+
+          // Physics
+          sendToWebView('setGravityPreset', { preset: gravityPreset, magnitude: gravityMagnitude });
+          sendToWebView('setCalcFactor', calcFactor);
+          sendToWebView('setCollisionsEnabled', collisionsEnabled);
+
+          // Grid - ALWAYS send grid state, even if disabled
+          console.log('🔧 Restoring grid state:', { gridEnabled, gridSegments, showWorldGrid, showOccupiedVoxels });
+          if (gridEnabled) {
+            sendToWebView('applyGrid', { segments: gridSegments });
+            if (showWorldGrid) {
+              sendToWebView('setShowWorldGrid', true);
+            }
+            if (showOccupiedVoxels) {
+              sendToWebView('setShowOccupiedVoxels', true);
+            }
+          } else {
+            sendToWebView('disableGrid');
+          }
+          sendToWebView('setShowCollisionChecks', showCollisionChecks);
+
+          // Rendering
+          sendToWebView('setDrawMode', drawMode);
+          sendToWebView('setWireframeSegments', wireframeSegments);
+          sendToWebView('setStereoMode', stereoMode);
+          sendToWebView('setEyeSeparation', eyeSeparation / 100);
+          sendToWebView('setCubeDepth', cubeDepth);
+
+          // Auto-rotation
+          if (turnSpeed > 0) {
+            sendToWebView('setAutoRotation', { enabled: true, speed: turnSpeed });
+          } else {
+            sendToWebView('setAutoRotation', { enabled: false });
+          }
+
+          // Generate balls with current settings (AFTER all settings are applied)
+          sendToWebView('new');
+
+          // Start if it was running
+          if (isRunning) {
+            sendToWebView('start');
+          }
+
+          console.log('✅ Settings resent to WebView');
+        }, 200);
       }
     } catch (e) {
       console.warn('⚠️ Failed to parse WebView message:', e.message);
@@ -597,26 +704,6 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
     }
   };
 
-  // ===== PERSISTENT WEBVIEW (rendered once, positioned differently per mode) =====
-  // Only for Mobile (not Web - Web uses iframe)
-  const renderPersistentWebView = () => (
-    <WebView
-      ref={webViewRef}
-      source={{ uri: webAppUri }}
-      style={{ flex: 1 }}
-      originWhitelist={['*', 'file://', 'http://', 'https://']}
-      javaScriptEnabled={true}
-      domStorageEnabled={true}
-      allowsInlineMediaPlayback={true}
-      mediaPlaybackRequiresUserAction={false}
-      allowFileAccess={true}
-      allowUniversalAccessFromFileURLs={true}
-      allowFileAccessFromFileURLs={true}
-      mixedContentMode="always"
-      injectedJavaScript={injectedJavaScript}
-      onMessage={handleWebViewMessage}
-    />
-  );
 
   // Auf Web verwenden wir einen iframe statt WebView für bessere Kompatibilität
   if (Platform.OS === "web") {
@@ -1153,8 +1240,13 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
     return (
       <SafeAreaView style={styles.vrContainer} edges={[]}>
         <StatusBar barStyle="light-content" backgroundColor="#000" />
-        {/* Fullscreen WebView - using persistent WebView */}
-        {renderPersistentWebView()}
+        {/* Fullscreen WebView */}
+        <PersistentWebView
+          webAppUri={webAppUri}
+          webViewRef={webViewRef}
+          injectedJavaScript={injectedJavaScript}
+          onMessage={handleWebViewMessage}
+        />
 
         {/* VR Tap Indicators (fade after 3s) - only shown initially */}
         <VRIndicators
@@ -1388,7 +1480,12 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
 
         {/* WebView - Square, centered */}
         <View style={styles.webViewContainerPortrait}>
-          {renderPersistentWebView()}
+          <PersistentWebView
+            webAppUri={webAppUri}
+            webViewRef={webViewRef}
+            injectedJavaScript={injectedJavaScript}
+            onMessage={handleWebViewMessage}
+          />
         </View>
 
         {/* Controls below - scrollable */}
@@ -1490,9 +1587,14 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
         />
       </View>
 
-      {/* WebView on right - using persistent WebView */}
+      {/* WebView on right */}
       <View style={{ flex: 1 }}>
-        {renderPersistentWebView()}
+        <PersistentWebView
+          webAppUri={webAppUri}
+          webViewRef={webViewRef}
+          injectedJavaScript={injectedJavaScript}
+          onMessage={handleWebViewMessage}
+        />
       </View>
     </SafeAreaView>
   );

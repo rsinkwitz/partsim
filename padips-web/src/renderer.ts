@@ -4,6 +4,7 @@
  */
 
 import * as THREE from 'three';
+import { Ball } from './core/Ball';
 import { BallSet } from './core/BallSet';
 import { GlobalParams } from './core/GlobalParams';
 import { Parallelogram } from './core/Parallelogram';
@@ -34,6 +35,13 @@ class PaDIPSApp {
   private lastFpsUpdate: number = 0;
   private currentFps: number = 0;
   private turnSpeed: number = 0; // Auto-rotation speed: 0=off, 1=1x, 2=2x, 3=3x, 4=4x
+
+  // Track last sent values to avoid duplicate updates
+  private lastSentState = {
+    drawMode: '',
+    gravityPreset: '',
+    turnSpeed: -1,
+  };
 
   // Visualization state (persistent across resets)
   private visualizationState = {
@@ -76,7 +84,15 @@ class PaDIPSApp {
     // Update initial stats
     this.updateStats();
 
+    // Try to restore previous state if available (orientation change recovery)
+    // This must run IMMEDIATELY on init, not via message, because WebView is already reloaded
+    console.log('🎬 Initializing - checking for saved state...');
+    this.restoreStateFromStorage();
+
     console.log('🎱 PaDIPS initialized with', this.ballSet.num, 'balls');
+
+    // Signal to parent that WebView is ready
+    this.sendInitializedSignal();
 
     // Starte Animation-Loop (läuft immer für Rendering & Kamera-Interaktion)
     this.lastTime = performance.now();
@@ -389,6 +405,15 @@ class PaDIPSApp {
               console.log('🔄 Auto-rotation: OFF from slider');
             }
             break;
+
+          // State persistence for orientation changes
+          case 'saveState':
+            this.saveStateToStorage();
+            console.log('💾 State saved on request');
+            break;
+
+          // Note: restoreState is NOT handled via message anymore
+          // It's called automatically on init because WebView reloads before message arrives
 
           // Forwarded keyboard events
           case 'keydown':
@@ -856,22 +881,8 @@ class PaDIPSApp {
             console.log(`⌨️ [T] Turn mode: ${this.turnSpeed}x speed`);
           }
 
-          // Send immediate feedback to UI (don't wait for next stats cycle)
-          console.log('📤 Sending turnSpeed update to UI:', this.turnSpeed);
-          const turnSpeedUpdate = {
-            type: 'turnSpeedUpdate',
-            turnSpeed: this.turnSpeed,
-          };
-
-          // For iframe (Web)
-          if (window.parent !== window) {
-            window.parent.postMessage(JSON.stringify(turnSpeedUpdate), '*');
-          }
-
-          // For React Native WebView
-          if ((window as any).ReactNativeWebView) {
-            (window as any).ReactNativeWebView.postMessage(JSON.stringify(turnSpeedUpdate));
-          }
+          // Send immediate feedback to UI
+          this.sendImmediateUpdate('turnSpeed');
           break;
 
         case 'g':
@@ -1285,7 +1296,8 @@ class PaDIPSApp {
       // Rendering & Physics (for keyboard shortcut feedback)
       drawMode: this.sceneManager.getDrawMode(),
       gravityPreset: gravityPreset,
-      turnSpeed: this.turnSpeed,
+      // NOTE: turnSpeed is NOT included in regular updates
+      // It is only sent when changed via 't' keyboard shortcut (sendImmediateUpdate)
     };
 
     // For iframe (Web)
@@ -1296,6 +1308,55 @@ class PaDIPSApp {
     // For React Native WebView
     if ((window as any).ReactNativeWebView) {
       (window as any).ReactNativeWebView.postMessage(JSON.stringify(state));
+    }
+
+    // Update last sent values
+    this.lastSentState.drawMode = state.drawMode;
+    this.lastSentState.gravityPreset = gravityPreset;
+    this.lastSentState.turnSpeed = this.turnSpeed;
+  }
+
+  /**
+   * Send immediate updates for settings that changed (via keyboard shortcuts)
+   */
+  private sendImmediateUpdate(changedField: 'drawMode' | 'gravityPreset' | 'turnSpeed'): void {
+    // Only send if value actually changed
+    if (changedField === 'drawMode' && this.sceneManager.getDrawMode() === this.lastSentState.drawMode) return;
+    if (changedField === 'turnSpeed' && this.turnSpeed === this.lastSentState.turnSpeed) return;
+
+    // Get current gravity preset
+    const currentAccel = this.global.acceleration;
+    let gravityPreset = 'ZERO';
+    if (currentAccel.y < -0.1) gravityPreset = 'DOWN';
+    else if (currentAccel.y > 0.1) gravityPreset = 'UP';
+    else if (currentAccel.x < -0.1) gravityPreset = 'LEFT';
+    else if (currentAccel.x > 0.1) gravityPreset = 'RIGHT';
+    else if (currentAccel.z > 0.1) gravityPreset = 'FRONT';
+    else if (currentAccel.z < -0.1) gravityPreset = 'REAR';
+
+    if (changedField === 'gravityPreset' && gravityPreset === this.lastSentState.gravityPreset) return;
+
+    // Prepare update with only changed field
+    const update: any = { type: changedField + 'Update' };
+
+    if (changedField === 'turnSpeed') {
+      update.turnSpeed = this.turnSpeed;
+      console.log('📤 Sending turnSpeed update to UI:', this.turnSpeed);
+      this.lastSentState.turnSpeed = this.turnSpeed;
+    } else if (changedField === 'drawMode') {
+      update.drawMode = this.sceneManager.getDrawMode();
+      this.lastSentState.drawMode = update.drawMode;
+    } else if (changedField === 'gravityPreset') {
+      update.gravityPreset = gravityPreset;
+      this.lastSentState.gravityPreset = gravityPreset;
+    }
+
+    // Send to parent
+    if (window.parent !== window) {
+      window.parent.postMessage(JSON.stringify(update), '*');
+    }
+    if ((window as any).ReactNativeWebView) {
+      (window as any).ReactNativeWebView.postMessage(JSON.stringify(update));
     }
   }
 
@@ -1551,6 +1612,8 @@ class PaDIPSApp {
 
       // Send state update to parent (every second with FPS update)
       this.sendStateToParent();
+
+      // Note: State persistence moved to orientation change handler in App.js
     }
 
     // Update stats display
@@ -1595,6 +1658,195 @@ class PaDIPSApp {
   }
 
   /**
+   * Save current state to sessionStorage (survives WebView remount during orientation changes)
+   */
+  private saveStateToStorage(): void {
+    try {
+      console.log('💾 saveStateToStorage called...');
+
+      const state = {
+        // Ball state
+        ballCount: this.ballSet.num,
+        balls: this.ballSet.balls.map(ball => ({
+          position: { x: ball.position.x, y: ball.position.y, z: ball.position.z },
+          velocity: { x: ball.velocity.x, y: ball.velocity.y, z: ball.velocity.z },
+          radius: ball.radius,
+          color: ball.color,
+        })),
+        generation: this.ballSet.generation,
+
+        // Simulation state
+        isRunning: this.isRunning,
+        calcFactor: this.simulationState.calcFactor,
+        collisionsEnabled: this.simulationState.collisionsEnabled,
+
+        // Physics state
+        gravity: {
+          x: this.global.acceleration.x,
+          y: this.global.acceleration.y,
+          z: this.global.acceleration.z,
+        },
+
+        // Rendering state
+        drawMode: this.sceneManager.getDrawMode(),
+        stereoMode: this.sceneManager.getStereoMode(),
+        turnSpeed: this.turnSpeed,
+
+        // Grid state
+        gridEnabled: this.visualizationState.gridEnabled,
+        gridSegments: {
+          x: this.visualizationState.gridSegments.x,
+          y: this.visualizationState.gridSegments.y,
+          z: this.visualizationState.gridSegments.z,
+        },
+        showWorldGrid: this.visualizationState.showWorldGrid,
+        showOccupiedVoxels: this.visualizationState.showOccupiedVoxels,
+        showCollisionChecks: this.visualizationState.showCollisionChecks,
+
+        timestamp: Date.now(),
+      };
+
+      console.log('💾 State object created:', {
+        ballCount: state.ballCount,
+        generation: state.generation,
+        drawMode: state.drawMode,
+        isRunning: state.isRunning,
+      });
+
+      const stateJson = JSON.stringify(state);
+      console.log('💾 State JSON size:', Math.round(stateJson.length / 1024), 'KB');
+
+      sessionStorage.setItem('padips_state', stateJson);
+
+      // Verify it was saved
+      const saved = sessionStorage.getItem('padips_state');
+      if (saved) {
+        console.log('✅ State saved to sessionStorage successfully');
+      } else {
+        console.error('❌ State was NOT saved to sessionStorage!');
+      }
+    } catch (e) {
+      console.error('❌ Failed to save state:', e);
+    }
+  }
+
+  /**
+   * Restore state from sessionStorage (after WebView remount)
+   */
+  private restoreStateFromStorage(): void {
+    try {
+      console.log('🔄 restoreStateFromStorage called...');
+
+      const savedState = sessionStorage.getItem('padips_state');
+      if (!savedState) {
+        console.log('ℹ️ No saved state found in sessionStorage');
+        return;
+      }
+
+      console.log('🔄 Found saved state, size:', Math.round(savedState.length / 1024), 'KB');
+
+      const state = JSON.parse(savedState);
+
+      console.log('🔄 Parsed state:', {
+        ballCount: state.ballCount,
+        generation: state.generation,
+        drawMode: state.drawMode,
+        isRunning: state.isRunning,
+      });
+
+      // Check if state is recent (within 5 seconds - typical orientation change duration)
+      const age = Date.now() - state.timestamp;
+      console.log('🔄 State age:', age, 'ms');
+
+      if (age > 5000) {
+        console.log('ℹ️ Saved state too old (' + age + 'ms), ignoring');
+        sessionStorage.removeItem('padips_state');
+        return;
+      }
+
+      console.log('🔄 Restoring state from sessionStorage (age: ' + age + 'ms)');
+
+      // Restore balls with exact positions and velocities
+      console.log('🔄 Restoring', state.balls.length, 'balls...');
+      const restoredBalls = state.balls.map((ballData: any) => {
+        const ball = new Ball();
+        ball.position.set(ballData.position.x, ballData.position.y, ballData.position.z);
+        ball.velocity.set(ballData.velocity.x, ballData.velocity.y, ballData.velocity.z);
+        ball.radius = ballData.radius;
+        ball.color = ballData.color;
+        return ball;
+      });
+
+      // Replace ball array (readonly property workaround)
+      (this.ballSet as any).balls = restoredBalls;
+      (this.ballSet as any).num = state.ballCount;
+      (this.ballSet as any).generation = state.generation;
+
+      console.log('🔄 Balls restored, generation:', state.generation);
+
+      // Restore simulation state
+      this.isRunning = state.isRunning;
+      this.simulationState.calcFactor = state.calcFactor;
+      this.simulationState.collisionsEnabled = state.collisionsEnabled;
+      this.physicsEngine.setCollisionsEnabled(state.collisionsEnabled);
+
+      // Restore physics
+      this.global.acceleration.set(state.gravity.x, state.gravity.y, state.gravity.z);
+
+      // Restore rendering
+      this.sceneManager.setDrawMode(state.drawMode);
+      this.sceneManager.setStereoMode(state.stereoMode);
+      this.turnSpeed = state.turnSpeed;
+      if (state.turnSpeed > 0) {
+        this.sceneManager.setAutoRotation(true, state.turnSpeed);
+      }
+
+      console.log('🔄 Rendering state restored:', state.drawMode, state.stereoMode);
+
+      // Restore grid state
+      this.visualizationState.gridEnabled = state.gridEnabled;
+      this.visualizationState.gridSegments.set(
+        state.gridSegments.x,
+        state.gridSegments.y,
+        state.gridSegments.z
+      );
+      this.visualizationState.showWorldGrid = state.showWorldGrid;
+      this.visualizationState.showOccupiedVoxels = state.showOccupiedVoxels;
+      this.visualizationState.showCollisionChecks = state.showCollisionChecks;
+
+      // Recreate scene with restored balls
+      console.log('🔄 Recreating scene...');
+      this.sceneManager.updateBalls(this.ballSet);
+
+      // Update grid visualization if enabled
+      if (state.gridEnabled || state.showWorldGrid) {
+        this.sceneManager.setShowGrid(true);
+      }
+      if (state.showOccupiedVoxels) {
+        this.sceneManager.setShowOccupiedVoxels(true);
+      }
+      if (state.showCollisionChecks) {
+        this.sceneManager.setShowCollisionChecks(true);
+      }
+
+      // Resume animation if it was running
+      if (state.isRunning) {
+        console.log('🔄 Resuming animation...');
+        this.start();
+      }
+
+      console.log('✅ State restored successfully - ' + state.ballCount + ' balls, generation ' + state.generation);
+
+      // Send state update to UI
+      this.updateStats();
+
+    } catch (e) {
+      console.error('❌ Failed to restore state:', e);
+      sessionStorage.removeItem('padips_state');
+    }
+  }
+
+  /**
    * Debug: Dump scene state
    */
   debugScene(): void {
@@ -1607,6 +1859,32 @@ class PaDIPSApp {
   debugAnaglyph(): void {
     this.sceneManager.debugAnaglyph();
   }
+
+  /**
+   * Public method to save state (called from window events)
+   */
+  saveState(): void {
+    this.saveStateToStorage();
+  }
+
+  /**
+   * Send initialized signal to parent
+   */
+  private sendInitializedSignal(): void {
+    const message = { type: 'initialized' };
+
+    // For iframe (Web)
+    if (window.parent !== window) {
+      window.parent.postMessage(JSON.stringify(message), '*');
+    }
+
+    // For React Native WebView
+    if ((window as any).ReactNativeWebView) {
+      (window as any).ReactNativeWebView.postMessage(JSON.stringify(message));
+    }
+
+    console.log('📤 Sent initialized signal to parent');
+  }
 }
 
 // Initialize app
@@ -1615,7 +1893,18 @@ const app = new PaDIPSApp(canvas);
 
 // Handle cleanup on page unload
 window.addEventListener('beforeunload', () => {
+  // Save state BEFORE unload (orientation change, navigation, etc.)
+  console.log('⚠️ beforeunload - saving state...');
+  app.saveState();
   app.dispose();
+});
+
+// Additional: Save state on visibility change (works better on mobile)
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    console.log('👁️ Page hidden - saving state...');
+    app.saveState();
+  }
 });
 
 // Export for debugging
