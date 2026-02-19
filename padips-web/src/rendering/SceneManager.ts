@@ -51,17 +51,16 @@ export class SceneManager {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x666666); // Grau wie im Original IRIX
 
-    // Camera (Z-Up coordinate system like original IRIX)
+    // Camera (Z-Up coordinate system)
     this.camera = new THREE.PerspectiveCamera(
       60, // fov
       window.innerWidth / window.innerHeight, // aspect
       0.1, // near
       100 // far
     );
-    // Position camera for frontal view: looking from front (negative Y direction)
-    // so that front/back faces are parallel to screen
-    this.camera.position.set(0, -5, 0.5); // Leicht erhöht (Z=0.5) für besseren Blickwinkel
-    this.camera.up.set(0, 0, 1); // Z-axis points up (like IRIX)
+    // Position camera straight from front, horizontal view
+    this.camera.position.set(0, -5, 0); // From front (Y=-5), at cube center height (Z=0)
+    this.camera.up.set(0, 0, 1); // Z-axis points up
     this.camera.lookAt(0, 0, 0);
 
     // Renderer
@@ -76,6 +75,16 @@ export class SceneManager {
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
+
+    // Allow full vertical rotation (up to 90° in both directions)
+    this.controls.minPolarAngle = 0; // Allow looking straight up
+    this.controls.maxPolarAngle = Math.PI; // Allow looking straight down
+
+    // No distance restrictions
+    this.controls.minDistance = 0.5;
+    this.controls.maxDistance = 50;
+
+    console.log('🎮 OrbitControls: Full rotation enabled (0° to 180°)');
 
     // Speichere initiale Distanz für Cube Depth Funktion
     // Distanz = Abstand von Kamera zu Target (Ursprung)

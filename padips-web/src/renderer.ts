@@ -141,15 +141,10 @@ class PaDIPSApp {
 
               texture.mapping = THREE.EquirectangularReflectionMapping;
 
-              // Shift the equirectangular map horizontally to rotate sky upward
-              // For equirectangular: offset.x shifts horizontally (rotation around up axis)
-              // We need to shift by 0.25 (90 degrees) to rotate the map
-              texture.offset.set(0.25, 0); // Shift horizontally by 25% (90°)
-              texture.repeat.set(1, 1);
-              texture.wrapS = THREE.RepeatWrapping;
-              texture.wrapT = THREE.ClampToEdgeWrapping;
-
               this.sceneManager.getScene().environment = texture;
+
+              console.log('✨ Environment map loaded');
+
 
               silverMaterial.envMap = texture;
               silverMaterial.envMapIntensity = 1.0;
@@ -794,7 +789,6 @@ class PaDIPSApp {
 
       // ===== OTHER SHORTCUTS =====
       switch (keyLower) {
-        case 's':
         case ' ': // Spacebar for Start/Stop
           // Start/Stop toggle
           if (this.isRunning) {
@@ -802,7 +796,15 @@ class PaDIPSApp {
           } else {
             this.start();
           }
-          console.log('⌨️ [S/Space] Start/Stop toggled');
+          console.log('⌨️ [Space] Start/Stop toggled');
+          break;
+
+        case 's':
+          // Toggle between LIGHTED and SILVER
+          const currentMode = this.sceneManager.getDrawMode();
+          const newMode = currentMode === DrawMode.SILVER ? DrawMode.LIGHTED : DrawMode.SILVER;
+          this.updateDrawMode(newMode);
+          console.log('⌨️ [S] Draw mode toggled:', newMode);
           break;
 
         case 'n':
@@ -870,7 +872,8 @@ class PaDIPSApp {
     });
 
     console.log('⌨️ Keyboard shortcuts enabled:');
-    console.log('  [S] or [Space] Start/Stop');
+    console.log('  [Space] Start/Stop');
+    console.log('  [S] Toggle Lighted ↔ Silver');
     console.log('  [N] New simulation');
     console.log('  [G] Toggle Gravity (Down ↔ Zero)');
     console.log('  [3] Top-Bottom 3D stereo (repeat=off)');
