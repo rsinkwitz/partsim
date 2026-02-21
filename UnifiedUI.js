@@ -8,6 +8,7 @@ import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
   Switch, Platform, Dimensions
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
 
 /**
@@ -378,10 +379,13 @@ export function UnifiedMenuOverlay({
 
   return (
     <View style={styles.overlay}>
-      <View style={[
-        styles.menuContainer,
-        isWebStereo && styles.menuContainerWebStereo
-      ]}>
+      <SafeAreaView
+        style={[
+          styles.menuContainer,
+          isWebStereo && styles.menuContainerWebStereo
+        ]}
+        edges={Platform.OS === 'web' ? [] : (isPortrait ? ['top', 'left'] : ['left', 'top'])}
+      >
         <ScrollView contentContainerStyle={styles.menuContent}>
           {/* KOPF-BEREICH: Stats + Close Button */}
           <View style={styles.headerRow}>
@@ -712,7 +716,7 @@ export function UnifiedMenuOverlay({
             </View>
           )}
         </ScrollView>
-      </View>
+      </SafeAreaView>
 
       {/* Tap to close overlay (right side or outside menu) */}
       <TouchableOpacity
@@ -790,8 +794,7 @@ const styles = StyleSheet.create({
     maxHeight: '50%',
   },
   menuContent: {
-    padding: 12, // Kompakter: 16 → 12
-    paddingTop: Platform.OS === 'ios' ? 40 : 12,
+    padding: 12,
   },
 
   // Header Row (Stats + Close Button)

@@ -45,6 +45,7 @@ export class SceneManager {
   private lastLoggedStereoMode: StereoMode = StereoMode.OFF; // Track last logged mode to avoid spam
   private initialCameraDistance: number = 0; // Initiale Distanz von Kamera zu Target
   private currentCubeDepth: number = 0; // Aktueller Cube Depth Wert (-20 bis +20)
+  private lastAspectRatio: number = 0; // Letzter Aspect Ratio für Orientierungswechsel-Erkennung
 
   // Silver material for SILVER draw mode
   private silverMaterial: THREE.MeshStandardMaterial | null = null;
@@ -56,16 +57,26 @@ export class SceneManager {
     this.scene.background = new THREE.Color(0x666666); // Grau wie im Original IRIX
 
     // Camera (Standard Three.js Y-Up coordinate system)
+    // FOV wird dynamisch angepasst basierend auf Aspect Ratio
+    const aspect = window.innerWidth / window.innerHeight;
+
     this.camera = new THREE.PerspectiveCamera(
-      60, // fov
-      window.innerWidth / window.innerHeight, // aspect
+      60, // base fov (wird bei Portrait angepasst)
+      aspect,
       0.1, // near
       100 // far
     );
-    // Position camera from front (standard Three.js: looking down -Z axis, Y is up)
-    this.camera.position.set(0, 0, 5); // From front (Z=5), centered
-    // camera.up defaults to (0, 1, 0) - Y-axis points up (Three.js standard)
+
+    // Kamera immer auf fester Distanz (5) - FOV passt sich an
+    const cameraDistance = 5;
+
+    this.camera.position.set(0, 0, cameraDistance);
     this.camera.lookAt(0, 0, 0);
+
+    // Speichere initialen Aspect Ratio
+    this.lastAspectRatio = aspect;
+
+    console.log('📷 Camera setup: aspect=', aspect.toFixed(2), 'distance=', cameraDistance.toFixed(2));
 
     // Renderer
     this.renderer = new THREE.WebGLRenderer({
@@ -725,7 +736,32 @@ export class SceneManager {
    * Handle window resize
    */
   private onWindowResize(): void {
-    this.camera.aspect = window.innerWidth / window.innerHeight;
+    const newAspect = window.innerWidth / window.innerHeight;
+
+    this.camera.aspect = newAspect;
+
+    // Adjust FOV based on aspect ratio to keep cube same size
+    // Base FOV is 60° for landscape (aspect >= 1)
+    // For portrait (aspect < 1), we need to increase FOV to compensate
+    const baseFOV = 60;
+
+    if (newAspect < 1) {
+      // Portrait: Increase vertical FOV to keep horizontal view angle constant
+      // The effective horizontal FOV should remain ~60°
+      // For portrait, we need: horizontalFOV = 2 * atan(tan(verticalFOV/2) * aspect)
+      // Solving for verticalFOV to get horizontalFOV = baseFOV:
+      // verticalFOV = 2 * atan(tan(baseFOV/2) / aspect)
+      const baseFOVRad = (baseFOV * Math.PI) / 180;
+      const newFOVRad = 2 * Math.atan(Math.tan(baseFOVRad / 2) / newAspect);
+      const newFOV = (newFOVRad * 180) / Math.PI;
+
+      this.camera.fov = newFOV;
+      console.log('📱 Portrait: FOV adjusted from', baseFOV, 'to', newFOV.toFixed(1), '(aspect=', newAspect.toFixed(2), ')');
+    } else {
+      // Landscape/Square: Use base FOV
+      this.camera.fov = baseFOV;
+    }
+
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
 
@@ -734,6 +770,17 @@ export class SceneManager {
       this.renderTargetL.setSize(window.innerWidth, window.innerHeight);
       this.renderTargetR.setSize(window.innerWidth, window.innerHeight);
     }
+
+    // Detect orientation change (portrait ↔ landscape)
+    const wasPortrait = this.lastAspectRatio < 1;
+    const isPortrait = newAspect < 1;
+
+    if (wasPortrait !== isPortrait) {
+      console.log('📱 Orientation change:', wasPortrait ? 'Portrait→Landscape' : 'Landscape→Portrait');
+    }
+
+    // Speichere neuen Aspect für nächsten Vergleich
+    this.lastAspectRatio = newAspect;
   }
 
   /**
@@ -854,16 +901,30 @@ export class SceneManager {
    * Reset camera to initial position and zoom
    */
   resetCamera(): void {
-    // Reset camera position to initial (0, 0, 5)
+    // Reset camera position to initial (0, 0, 5) - konstante Distanz
     this.camera.position.set(0, 0, 5);
 
     // Reset controls target to origin
     this.controls.target.set(0, 0, 0);
 
-    // Reset zoom/distance
+    // Reset FOV basierend auf aktuellem Aspect Ratio
+    const aspect = window.innerWidth / window.innerHeight;
+    const baseFOV = 60;
+
+    if (aspect < 1) {
+      // Portrait: Adjust FOV
+      const baseFOVRad = (baseFOV * Math.PI) / 180;
+      const newFOVRad = 2 * Math.atan(Math.tan(baseFOVRad / 2) / aspect);
+      this.camera.fov = (newFOVRad * 180) / Math.PI;
+    } else {
+      // Landscape: Base FOV
+      this.camera.fov = baseFOV;
+    }
+
+    this.camera.updateProjectionMatrix();
     this.controls.update();
 
-    console.log('📷 Camera reset to initial position (0, 0, 5)');
+    console.log('📷 Camera reset: position=(0,0,5), FOV=', this.camera.fov.toFixed(1));
   }
 
   /**

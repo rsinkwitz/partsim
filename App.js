@@ -219,6 +219,10 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
                 return data.turnSpeed;
               });
             }
+          } else if (data.type === 'resetRequest') {
+            // Reset requested from WebView (e.g., via keyboard shortcut [R])
+            console.log('🔄 Reset requested from WebView');
+            handleReset();
           }
         } catch (e) {
           // Ignore non-JSON messages
@@ -498,6 +502,12 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           console.log('  Previous turnSpeed:', prev, '→ New:', data.turnSpeed);
           return data.turnSpeed;
         });
+      }
+
+      // Reset request from 'R' keyboard shortcut
+      if (data.type === 'resetRequest') {
+        console.log('🔄 Reset requested from WebView');
+        handleReset();
       }
 
       if (data.type === 'error' || data.type === 'unhandledrejection') {
@@ -847,18 +857,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff', // Light mode
   },
 
-  // WebView Container - Base
+  // WebView Container - Base (Vollbild, kein Platz für System-Icons)
   webViewContainer: {
     position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
     backgroundColor: '#000',
   },
 
   // Web: 10% größer (110% = 1.1), zentriert
   webViewContainerWeb: {
-    top: '50%',
-    left: '50%',
     width: '110%',
     height: '110%',
+    top: '50%',
+    left: '50%',
     transform: [{ translateX: '-50%' }, { translateY: '-50%' }],
   },
 
@@ -868,20 +882,14 @@ const styles = StyleSheet.create({
     height: '110%',
   },
 
-  // Mobile Portrait: Quadratisch, oben zentriert, Breite = 100%
+  // Mobile Portrait: Vollbild (keine aspectRatio mehr)
   webViewContainerPortrait: {
-    top: 0,
-    left: 0,
-    width: '100%',
-    aspectRatio: 1, // Quadratisch
+    // Nutzt base container (100% x 100%)
   },
 
-  // Mobile Landscape: Links Platz lassen (20%), Rest für WebView
+  // Mobile Landscape: Vollbild
   webViewContainerLandscape: {
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
+    // Nutzt base container (100% x 100%)
   },
 
   loadingContainer: {

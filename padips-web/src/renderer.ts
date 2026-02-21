@@ -840,6 +840,13 @@ class PaDIPSApp {
           console.log('⌨️ [A] Apply - New simulation');
           break;
 
+        case 'r':
+        case 'R':
+          // Reset to defaults - send message to parent UI to trigger full reset
+          this.sendResetRequest();
+          console.log('⌨️ [R] Reset to defaults requested');
+          break;
+
         case '3':
           // Toggle Stereo on/off (platform-specific mode)
           // Web: Top-Bottom, Mobile Portrait: Anaglyph, Mobile Landscape: Side-by-Side
@@ -1382,6 +1389,27 @@ class PaDIPSApp {
     // For React Native WebView
     if ((window as any).ReactNativeWebView) {
       (window as any).ReactNativeWebView.postMessage(JSON.stringify(update));
+    }
+  }
+
+  /**
+   * Send reset request to parent UI (triggered by 'R' key)
+   */
+  private sendResetRequest(): void {
+    const message = {
+      type: 'resetRequest',
+    };
+
+    console.log('🔄 Sending reset request to UI');
+
+    // For iframe (Web)
+    if (window.parent !== window) {
+      window.parent.postMessage(JSON.stringify(message), '*');
+    }
+
+    // For React Native WebView
+    if ((window as any).ReactNativeWebView) {
+      (window as any).ReactNativeWebView.postMessage(JSON.stringify(message));
     }
   }
 
