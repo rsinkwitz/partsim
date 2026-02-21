@@ -311,6 +311,14 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
         if (wasPortrait !== null && wasPortrait !== portrait) {
           console.log('🔄 Orientation changed, showing tap indicators');
           setShowTapIndicators(true);
+
+          // Notify WebView of orientation change so it can update FOV
+          console.log('📱 Notifying WebView of orientation change');
+          sendToWebView('orientationChanged', {
+            isPortrait: portrait,
+            width: width,
+            height: height
+          });
         }
 
         // Update refs and state

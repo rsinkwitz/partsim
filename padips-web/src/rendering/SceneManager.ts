@@ -750,8 +750,49 @@ export class SceneManager {
   private onWindowResize(): void {
     const newAspect = window.innerWidth / window.innerHeight;
 
-    console.log('📐 Window resize: aspect=', newAspect.toFixed(2), 'oldAspect=', this.lastAspectRatio.toFixed(2));
+    console.log('📐 Window resize:', {
+      width: window.innerWidth,
+      height: window.innerHeight,
+      newAspect: newAspect.toFixed(2),
+      oldAspect: this.lastAspectRatio.toFixed(2),
+      currentFOV: this.camera.fov.toFixed(1)
+    });
 
+    this.updateCameraForAspect(newAspect);
+
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+
+    // Update Anaglyph Render-Targets
+    if (this.renderTargetL && this.renderTargetR) {
+      this.renderTargetL.setSize(window.innerWidth, window.innerHeight);
+      this.renderTargetR.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    // Update last aspect ratio
+    this.lastAspectRatio = newAspect;
+  }
+
+  /**
+   * Handle orientation change from React Native (manually triggered)
+   */
+  handleOrientationChange(isPortrait: boolean, width: number, height: number): void {
+    console.log('📱 handleOrientationChange:', { isPortrait, width, height });
+
+    const newAspect = width / height;
+
+    this.updateCameraForAspect(newAspect);
+
+    // Update renderer size (might not be needed, but doesn't hurt)
+    this.renderer.setSize(width, height);
+
+    // Update last aspect ratio
+    this.lastAspectRatio = newAspect;
+  }
+
+  /**
+   * Update camera FOV and aspect based on aspect ratio
+   */
+  private updateCameraForAspect(newAspect: number): void {
     this.camera.aspect = newAspect;
 
     // Adjust FOV based on aspect ratio to keep cube same size
@@ -766,32 +807,14 @@ export class SceneManager {
       const newFOV = (newFOVRad * 180) / Math.PI;
 
       this.camera.fov = newFOV;
-      console.log('📱 Portrait: FOV=', newFOV.toFixed(1), 'aspect=', newAspect.toFixed(2));
+      console.log('📱 Portrait: FOV=', newFOV.toFixed(1), '° (from', this.camera.fov.toFixed(1), '°)');
     } else {
       // Landscape/Square: Use base FOV
       this.camera.fov = baseFOV;
-      console.log('📱 Landscape: FOV=', baseFOV, 'aspect=', newAspect.toFixed(2));
+      console.log('📱 Landscape: FOV=', baseFOV, '° (from', this.camera.fov.toFixed(1), '°)');
     }
 
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-
-    // Update Anaglyph Render-Targets
-    if (this.renderTargetL && this.renderTargetR) {
-      this.renderTargetL.setSize(window.innerWidth, window.innerHeight);
-      this.renderTargetR.setSize(window.innerWidth, window.innerHeight);
-    }
-
-    // Detect orientation change (portrait ↔ landscape)
-    const wasPortrait = this.lastAspectRatio < 1;
-    const isPortrait = newAspect < 1;
-
-    if (wasPortrait !== isPortrait) {
-      console.log('📱 Orientation change:', wasPortrait ? 'Portrait→Landscape' : 'Landscape→Portrait');
-    }
-
-    // Speichere neuen Aspect für nächsten Vergleich
-    this.lastAspectRatio = newAspect;
   }
 
   /**

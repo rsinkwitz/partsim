@@ -421,6 +421,17 @@ class PaDIPSApp {
             console.log('⌨️ Processed forwarded key:', data.params.key);
             break;
 
+          // Orientation change from React Native
+          case 'orientationChanged':
+            console.log('📱 Orientation change received from React Native:', data.params);
+            // Manually trigger resize with new dimensions
+            this.sceneManager.handleOrientationChange(
+              data.params.isPortrait,
+              data.params.width,
+              data.params.height
+            );
+            break;
+
           default:
             console.warn('Unknown action:', data.action);
         }
