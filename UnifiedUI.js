@@ -737,6 +737,9 @@ export function TapZones({ onTapLeft, onTapRight, showIndicators = false }) {
   // Calculate bottom position: base (40px) + safe area inset
   const bottomPosition = Platform.OS !== 'web' ? 40 + insets.bottom : 40;
 
+  // TEST: Always show (ignore showIndicators parameter)
+  const alwaysShow = true;
+
   return (
     <>
       {/* Left tap zone */}
@@ -754,7 +757,7 @@ export function TapZones({ onTapLeft, onTapRight, showIndicators = false }) {
         onPress={onTapLeft}
         activeOpacity={0.7}
       >
-        {showIndicators && (
+        {alwaysShow && (
           <View style={styles.tapIndicator}>
             <Text style={styles.tapIndicatorText}>👆 Tap for menu</Text>
           </View>
@@ -776,7 +779,7 @@ export function TapZones({ onTapLeft, onTapRight, showIndicators = false }) {
         onPress={onTapRight}
         activeOpacity={0.7}
       >
-        {showIndicators && (
+        {alwaysShow && (
           <View style={styles.tapIndicator}>
             <Text style={styles.tapIndicatorText}>👆 Tap for menu</Text>
           </View>
