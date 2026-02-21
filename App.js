@@ -295,8 +295,14 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
       const updateOrientation = () => {
         const { width, height } = require('react-native').Dimensions.get('window');
         const portrait = height > width;
+        const wasPortrait = isPortrait;
         setIsPortrait(portrait);
         console.log('📱 Orientation:', portrait ? 'Portrait' : 'Landscape');
+
+        // Show tap indicators for 3 seconds on orientation change (not on initial load)
+        if (wasPortrait !== portrait && wasPortrait !== undefined) {
+          setShowTapIndicators(true);
+        }
       };
 
       // Initial check
@@ -313,9 +319,9 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
     }
   }, []);
 
-  // Fade tap indicators after 3 seconds on mobile
+  // Fade tap indicators after 3 seconds (Web and Mobile)
   useEffect(() => {
-    if (Platform.OS !== "web" && showTapIndicators) {
+    if (showTapIndicators) {
       const timer = setTimeout(() => {
         setShowTapIndicators(false);
       }, 3000);

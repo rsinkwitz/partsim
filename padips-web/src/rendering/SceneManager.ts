@@ -60,8 +60,20 @@ export class SceneManager {
     // FOV wird dynamisch angepasst basierend auf Aspect Ratio
     const aspect = window.innerWidth / window.innerHeight;
 
+    // Calculate initial FOV based on aspect ratio
+    const baseFOV = 60;
+    let initialFOV = baseFOV;
+
+    if (aspect < 1) {
+      // Portrait: Increase vertical FOV to keep horizontal view angle constant
+      const baseFOVRad = (baseFOV * Math.PI) / 180;
+      const newFOVRad = 2 * Math.atan(Math.tan(baseFOVRad / 2) / aspect);
+      initialFOV = (newFOVRad * 180) / Math.PI;
+      console.log('📷 Portrait detected: FOV adjusted to', initialFOV.toFixed(1), '(aspect=', aspect.toFixed(2), ')');
+    }
+
     this.camera = new THREE.PerspectiveCamera(
-      60, // base fov (wird bei Portrait angepasst)
+      initialFOV, // FOV basierend auf Aspect Ratio
       aspect,
       0.1, // near
       100 // far
@@ -76,7 +88,7 @@ export class SceneManager {
     // Speichere initialen Aspect Ratio
     this.lastAspectRatio = aspect;
 
-    console.log('📷 Camera setup: aspect=', aspect.toFixed(2), 'distance=', cameraDistance.toFixed(2));
+    console.log('📷 Camera setup: aspect=', aspect.toFixed(2), 'distance=', cameraDistance.toFixed(2), 'FOV=', initialFOV.toFixed(1));
 
     // Renderer
     this.renderer = new THREE.WebGLRenderer({
@@ -738,6 +750,8 @@ export class SceneManager {
   private onWindowResize(): void {
     const newAspect = window.innerWidth / window.innerHeight;
 
+    console.log('📐 Window resize: aspect=', newAspect.toFixed(2), 'oldAspect=', this.lastAspectRatio.toFixed(2));
+
     this.camera.aspect = newAspect;
 
     // Adjust FOV based on aspect ratio to keep cube same size
@@ -747,19 +761,16 @@ export class SceneManager {
 
     if (newAspect < 1) {
       // Portrait: Increase vertical FOV to keep horizontal view angle constant
-      // The effective horizontal FOV should remain ~60°
-      // For portrait, we need: horizontalFOV = 2 * atan(tan(verticalFOV/2) * aspect)
-      // Solving for verticalFOV to get horizontalFOV = baseFOV:
-      // verticalFOV = 2 * atan(tan(baseFOV/2) / aspect)
       const baseFOVRad = (baseFOV * Math.PI) / 180;
       const newFOVRad = 2 * Math.atan(Math.tan(baseFOVRad / 2) / newAspect);
       const newFOV = (newFOVRad * 180) / Math.PI;
 
       this.camera.fov = newFOV;
-      console.log('📱 Portrait: FOV adjusted from', baseFOV, 'to', newFOV.toFixed(1), '(aspect=', newAspect.toFixed(2), ')');
+      console.log('📱 Portrait: FOV=', newFOV.toFixed(1), 'aspect=', newAspect.toFixed(2));
     } else {
       // Landscape/Square: Use base FOV
       this.camera.fov = baseFOV;
+      console.log('📱 Landscape: FOV=', baseFOV, 'aspect=', newAspect.toFixed(2));
     }
 
     this.camera.updateProjectionMatrix();

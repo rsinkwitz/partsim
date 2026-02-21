@@ -8,7 +8,7 @@ import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
   Switch, Platform, Dimensions
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
 
 /**
@@ -732,11 +732,25 @@ export function UnifiedMenuOverlay({
  * Tap Zones (bottom corners)
  */
 export function TapZones({ onTapLeft, onTapRight, showIndicators = false }) {
+  const insets = useSafeAreaInsets();
+
+  // Calculate bottom position: base (40px) + safe area inset
+  const bottomPosition = Platform.OS !== 'web' ? 40 + insets.bottom : 40;
+
   return (
     <>
       {/* Left tap zone */}
       <TouchableOpacity
-        style={[styles.tapZone, styles.tapZoneLeft]}
+        style={{
+          position: 'absolute',
+          left: 20,
+          bottom: bottomPosition,
+          width: 80,
+          height: 80,
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 10000,
+        }}
         onPress={onTapLeft}
         activeOpacity={0.7}
       >
@@ -749,7 +763,16 @@ export function TapZones({ onTapLeft, onTapRight, showIndicators = false }) {
 
       {/* Right tap zone */}
       <TouchableOpacity
-        style={[styles.tapZone, styles.tapZoneRight]}
+        style={{
+          position: 'absolute',
+          right: 20,
+          bottom: bottomPosition,
+          width: 80,
+          height: 80,
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 10000,
+        }}
         onPress={onTapRight}
         activeOpacity={0.7}
       >
@@ -1043,17 +1066,18 @@ const styles = StyleSheet.create({
   // Tap Zones
   tapZone: {
     position: 'absolute',
-    bottom: 0,
+    // bottom wird dynamisch gesetzt (nicht hier im Style)
     width: 80,
     height: 80,
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 1000, // Über dem WebView
   },
   tapZoneLeft: {
-    left: 0,
+    left: 20, // Abstand vom linken Rand
   },
   tapZoneRight: {
-    right: 0,
+    right: 20, // Abstand vom rechten Rand
   },
   tapIndicator: {
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
