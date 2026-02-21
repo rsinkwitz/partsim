@@ -1,0 +1,158 @@
+  // === UNIFIED UI FOR ALL PLATFORMS ===
+  // Fullscreen WebView with tap-to-menu overlay on all platforms
+
+  // Helper to send messages (works for both iframe and WebView)
+  const sendMessage = (action, params) => {
+    if (Platform.OS === "web") {
+      // Web: iframe
+      if (webViewRef.current && webViewRef.current.contentWindow) {
+        const message = JSON.stringify({ action, params });
+        webViewRef.current.contentWindow.postMessage(message, '*');
+      }
+    } else {
+      // Mobile: WebView
+      if (webViewRef.current) {
+        const message = JSON.stringify({ action, params });
+        webViewRef.current.postMessage(message);
+      }
+    }
+  };
+
+  // Persistent WebView Component (memoized to prevent remount)
+  const PersistentWebView = React.memo(({ webAppUri, webViewRef, injectedJavaScript, onMessage }) => {
+    if (Platform.OS === "web") {
+      // Web: iframe
+      return (
+        <iframe
+          ref={webViewRef}
+          src={webAppUri}
+          onLoad={() => {
+            console.log('📺 iframe loaded');
+          }}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            border: "none",
+          }}
+          title="PaDIPS Simulation"
+        />
+      );
+    } else {
+      // Mobile: WebView
+      return (
+        <WebView
+          ref={webViewRef}
+          source={{ uri: webAppUri }}
+          originWhitelist={['*']}
+          onMessage={onMessage}
+          injectedJavaScript={injectedJavaScript}
+          javaScriptEnabled={true}
+          domStorageEnabled={true}
+          style={{ flex: 1 }}
+        />
+      );
+    }
+  }, (prevProps, nextProps) => {
+    return prevProps.webAppUri === nextProps.webAppUri;
+  });
+
+  return (
+    <SafeAreaView style={styles.unifiedContainer} edges={[]}>
+      <StatusBar
+        barStyle={showMenu ? "light-content" : "dark-content"}
+        backgroundColor={showMenu ? "#000" : "#fff"}
+      />
+
+      {/* Fullscreen WebView - ALWAYS mounted */}
+      <PersistentWebView
+        webAppUri={webAppUri}
+        webViewRef={webViewRef}
+        injectedJavaScript={injectedJavaScript}
+        onMessage={handleWebViewMessage}
+      />
+
+      {/* Tap Zones (bottom corners) */}
+      <TapZones
+        onTapLeft={() => {
+          setShowMenu(true);
+          setShowTapIndicators(false);
+        }}
+        onTapRight={() => {
+          setShowMenu(true);
+          setShowTapIndicators(false);
+        }}
+        showIndicators={showTapIndicators && !showMenu}
+      />
+
+      {/* Menu Overlay */}
+      <UnifiedMenuOverlay
+        visible={showMenu}
+        onClose={() => setShowMenu(false)}
+
+        // Stats
+        fps={fps}
+        ballCount={actualBallCount}
+        generation={generation}
+        checks={checks}
+
+        // States
+        isRunning={isRunning}
+        drawMode={drawMode}
+        setDrawMode={setDrawMode}
+        gravityPreset={gravityPreset}
+        setGravityPreset={setGravityPreset}
+        gravityMagnitude={gravityMagnitude}
+        setGravityMagnitude={setGravityMagnitude}
+        gridEnabled={gridEnabled}
+        setGridEnabled={setGridEnabled}
+        gridSegments={gridSegments}
+        setGridSegments={setGridSegments}
+        showWorldGrid={showWorldGrid}
+        setShowWorldGrid={setShowWorldGrid}
+        showOccupiedVoxels={showOccupiedVoxels}
+        setShowOccupiedVoxels={setShowOccupiedVoxels}
+        showCollisionChecks={showCollisionChecks}
+        setShowCollisionChecks={setShowCollisionChecks}
+        stereoMode={stereoMode}
+        setStereoMode={setStereoMode}
+        eyeSeparation={eyeSeparation}
+        setEyeSeparation={setEyeSeparation}
+        cubeDepth={cubeDepth}
+        setCubeDepth={setCubeDepth}
+        turnSpeed={turnSpeed}
+        setTurnSpeed={setTurnSpeed}
+
+        // Ball parameters
+        minRadius={minRadius}
+        setMinRadius={setMinRadius}
+        maxRadius={maxRadius}
+        setMaxRadius={setMaxRadius}
+        maxVelocity={maxVelocity}
+        setMaxVelocity={setMaxVelocity}
+        elasticity={elasticity}
+        setElasticity={setElasticity}
+
+        // Simulation
+        calcFactor={calcFactor}
+        setCalcFactor={setCalcFactor}
+        collisionsEnabled={collisionsEnabled}
+        setCollisionsEnabled={setCollisionsEnabled}
+
+        // Rendering
+        wireframeSegments={wireframeSegments}
+        setWireframeSegments={setWireframeSegments}
+
+        // Callbacks
+        sendToWebView={sendMessage}
+        onTogglePlayPause={handleTogglePlayPause}
+        onReset={handleReset}
+
+        // Platform info
+        isPortrait={isPortrait}
+      />
+    </SafeAreaView>
+  );
+

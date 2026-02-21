@@ -219,7 +219,6 @@ export class SceneManager {
    * Create ball mesh
    */
   private createBallMesh(ball: Ball): THREE.Mesh | THREE.Points {
-    console.log('🔨 createBallMesh - DrawMode:', this.drawMode, 'Ball pos:', ball.position, 'Radius:', ball.radius, 'Color:', ball.color.toString(16));
 
     let material: THREE.Material;
     let mesh: THREE.Mesh | THREE.Points;
@@ -307,7 +306,6 @@ export class SceneManager {
         break;
     }
 
-    console.log('✅ createBallMesh created:', mesh.type, 'Has geometry:', !!mesh.geometry, 'Has material:', !!mesh.material);
     return mesh;
   }
 
@@ -413,13 +411,6 @@ export class SceneManager {
         addedBalls++;
       }
     }
-
-    console.log('✅ Added', addedBalls, 'ball meshes to scene');
-    console.log('📊 Scene children count:', this.scene.children.length);
-    console.log('📊 Ball meshes in map:', this.ballMeshes.size);
-
-    // List all scene children for debugging
-    console.log('📋 Scene children types:', this.scene.children.map(c => c.type).join(', '));
   }
 
   /**
@@ -857,6 +848,22 @@ export class SceneManager {
     // OrbitControls update wird automatisch im nächsten Frame aufgerufen
 
     console.log('📦 Cube depth set to:', depth.toFixed(1), 'm (slider:', this.currentCubeDepth.toFixed(0), ', Distance:', newDistance.toFixed(2), ')');
+  }
+
+  /**
+   * Reset camera to initial position and zoom
+   */
+  resetCamera(): void {
+    // Reset camera position to initial (0, 0, 5)
+    this.camera.position.set(0, 0, 5);
+
+    // Reset controls target to origin
+    this.controls.target.set(0, 0, 0);
+
+    // Reset zoom/distance
+    this.controls.update();
+
+    console.log('📷 Camera reset to initial position (0, 0, 5)');
   }
 
   /**

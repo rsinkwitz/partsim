@@ -345,9 +345,9 @@ export default function ControlsPanel({
               <Text style={styles.label}>Eye Separation: {eyeSeparation.toFixed(1)} cm</Text>
               <Slider
                 style={styles.slider}
-                minimumValue={4}
-                maximumValue={12}
-                step={0.1}
+                minimumValue={5}
+                maximumValue={15}
+                step={0.2}
                 value={eyeSeparation}
                 onValueChange={(val) => {
                   setEyeSeparation(val);

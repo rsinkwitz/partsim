@@ -3,8 +3,9 @@ set -e
 
 echo "🚀 Starting build and deploy..."
 
-# Navigate to padips-web
-cd /Users/sra/Documents/p/tech/mobile/padips/padips-web
+# Navigate to script directory, then to padips-web
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "$SCRIPT_DIR/../padips-web"
 
 echo "🔨 Building with webpack..."
 npm run build

@@ -5,8 +5,7 @@ import { SafeAreaView, SafeAreaProvider } from "react-native-safe-area-context";
 import * as FileSystem from "expo-file-system/legacy";
 import { Asset } from "expo-asset";
 import Slider from '@react-native-community/slider';
-import { StatsPanel, MainControls, VRIndicators, VRMenuOverlay } from './MobileUI';
-import ControlsPanel from './ControlsPanel';
+import { UnifiedMenuOverlay, TapZones } from './UnifiedUI';
 
 export default function App() {
   const [webAppUri, setWebAppUri] = useState(null);
@@ -31,28 +30,49 @@ export default function App() {
 }
 
 // Persistent WebView Component - using React.memo to prevent unnecessary re-renders
-// The key prop ensures React keeps the same instance across parent changes
+// Supports both Web (iframe) and Mobile (WebView)
 const PersistentWebView = React.memo(({ webAppUri, webViewRef, injectedJavaScript, onMessage }) => {
   if (!webAppUri) return null;
 
-  return (
-    <WebView
-      ref={webViewRef}
-      source={{ uri: webAppUri }}
-      style={{ flex: 1 }}
-      originWhitelist={['*', 'file://', 'http://', 'https://']}
-      javaScriptEnabled={true}
-      domStorageEnabled={true}
-      allowsInlineMediaPlayback={true}
-      mediaPlaybackRequiresUserAction={false}
-      allowFileAccess={true}
-      allowUniversalAccessFromFileURLs={true}
-      allowFileAccessFromFileURLs={true}
-      mixedContentMode="always"
-      injectedJavaScript={injectedJavaScript}
-      onMessage={onMessage}
-    />
-  );
+  if (Platform.OS === "web") {
+    // Web: iframe
+    return (
+      <iframe
+        ref={webViewRef}
+        src={webAppUri}
+        onLoad={() => console.log('📺 iframe loaded')}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          border: "none",
+        }}
+        title="PaDIPS Simulation"
+      />
+    );
+  } else {
+    // Mobile: WebView
+    return (
+      <WebView
+        ref={webViewRef}
+        source={{ uri: webAppUri }}
+        style={{ flex: 1 }}
+        originWhitelist={['*', 'file://', 'http://', 'https://']}
+        javaScriptEnabled={true}
+        domStorageEnabled={true}
+        allowsInlineMediaPlayback={true}
+        mediaPlaybackRequiresUserAction={false}
+        allowFileAccess={true}
+        allowUniversalAccessFromFileURLs={true}
+        allowFileAccessFromFileURLs={true}
+        mixedContentMode="always"
+        injectedJavaScript={injectedJavaScript}
+        onMessage={onMessage}
+      />
+    );
+  }
 }, (prevProps, nextProps) => {
   // Only re-render if webAppUri changes (which happens once on load)
   return prevProps.webAppUri === nextProps.webAppUri;
@@ -94,12 +114,15 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
   // WebView loaded state for initial cube depth fix
   const [webViewLoaded, setWebViewLoaded] = useState(false);
 
+  // Track if we've already initialized (to prevent multiple resets)
+  const initializedRef = useRef(false);
+
   // Mobile-specific state
   const [isPortrait, setIsPortrait] = useState(true);
-  const [isVRMode, setIsVRMode] = useState(false);
-  const [showVRMenu, setShowVRMenu] = useState(false);
-  const [showVRIndicators, setShowVRIndicators] = useState(true);
 
+  // Unified UI state - Menu visibility and tap indicators
+  const [showMenu, setShowMenu] = useState(false);
+  const [showTapIndicators, setShowTapIndicators] = useState(true);
 
   // Stats from WebView
   const [fps, setFps] = useState(0);
@@ -211,6 +234,14 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
   useEffect(() => {
     if (Platform.OS === "web") {
       const handleKeyDown = (event) => {
+        // Menu toggle shortcuts ('M' or 'F10')
+        if (event.key === 'm' || event.key === 'M' || event.key === 'F10') {
+          setShowMenu(prev => !prev);
+          event.preventDefault();
+          console.log('⌨️ Menu toggled via keyboard:', event.key);
+          return;
+        }
+
         // Check if iframe is loaded and has contentWindow
         if (webViewRef.current && webViewRef.current.contentWindow) {
           // Forward the keyboard event to the iframe
@@ -231,8 +262,8 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
             }
           }), '*');
 
-          // Prevent default for known shortcuts
-          const shortcuts = ['s', 'n', '3', 'a', 't', 'w', 'p', 'g', 'F1'];
+          // Prevent default for known shortcuts (updated list)
+          const shortcuts = ['s', 'a', 'y', '3', 't', 'w', 'p', 'g', 'F1'];
           if (shortcuts.includes(event.key) ||
               event.key === '+' || event.key === '-' ||
               event.key === 'j' || event.key === 'k' ||
@@ -245,7 +276,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
       };
 
       window.addEventListener('keydown', handleKeyDown);
-      console.log('⌨️ Keyboard event forwarder installed');
+      console.log('⌨️ Keyboard event forwarder installed (M/F10 for menu)');
 
       return () => {
         window.removeEventListener('keydown', handleKeyDown);
@@ -258,16 +289,10 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
   useEffect(() => {
     if (Platform.OS !== "web") {
       const updateOrientation = () => {
-        // Save state BEFORE orientation change (WebView will be remounted)
-        sendToWebView('saveState');
-
         const { width, height } = require('react-native').Dimensions.get('window');
         const portrait = height > width;
         setIsPortrait(portrait);
         console.log('📱 Orientation:', portrait ? 'Portrait' : 'Landscape');
-
-        // Note: restoreState is NOT called here - it happens automatically
-        // when WebView reloads and calls restoreStateFromStorage() on init
       };
 
       // Initial check
@@ -284,41 +309,17 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
     }
   }, []);
 
-  // Auto-activate VR mode when Side-by-Side Stereo + Landscape (Mobile only)
+  // Fade tap indicators after 3 seconds on mobile
   useEffect(() => {
-    if (Platform.OS !== "web") {
-      const shouldBeVR = stereoMode === 'sidebyside' && !isPortrait;
-
-      if (shouldBeVR !== isVRMode) {
-        setIsVRMode(shouldBeVR);
-        if (shouldBeVR) {
-          console.log('🥽 VR Mode activated (Side-by-Side + Landscape)');
-          // Ensure Side-by-Side is active in WebView (with small delay for WebView readiness)
-          setTimeout(() => {
-            sendToWebView('setStereoMode', 'sidebyside');
-          }, 100);
-          setShowVRIndicators(true);
-          // Hide indicators after 3 seconds
-          setTimeout(() => setShowVRIndicators(false), 3000);
-        } else {
-          console.log('📱 VR Mode deactivated');
-          setShowVRMenu(false);
-          // Turn off stereo when leaving VR
-          if (stereoMode === 'sidebyside') {
-            setStereoMode('off');
-            sendToWebView('setStereoMode', 'off');
-          }
-        }
-      }
+    if (Platform.OS !== "web" && showTapIndicators) {
+      const timer = setTimeout(() => {
+        setShowTapIndicators(false);
+      }, 3000);
+      return () => clearTimeout(timer);
     }
-  }, [stereoMode, isPortrait, isVRMode]);
+  }, [showTapIndicators]);
 
-  // Note: Volume button control for eye separation is not available in Expo
-  // Eye separation can be adjusted via the slider in the VR menu
-
-  // Fix: Reset cube depth to exact 0 after initial render
-  // This fixes React Native Web Slider bug where initial value 0 renders at left
-  // Must be here (before any conditional returns) to comply with Rules of Hooks
+  // Load web app files
   useEffect(() => {
     if (Platform.OS === "web") {
       // Short delay to ensure slider is mounted, then set to exact 0
@@ -330,19 +331,29 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
     }
   }, []); // Run once on mount
 
-  // Hilfsfunktion um Aktionen an die WebView zu senden
+  // Hilfsfunktion um Aktionen an die WebView zu senden (Platform-aware)
   const sendToWebView = (action, params) => {
-    if (webViewRef.current) {
-      const message = JSON.stringify({ action, params });
-      // Log UI→WebView messages to debug which controls work
-      if (action !== 'setCalcFactor') { // CalcFactor spammt bei Slider-Bewegung
-        if (params === undefined) {
-          console.log('📤 UI→WebView:', action);
-        } else {
-          console.log('📤 UI→WebView:', action, params);
-        }
+    // Log UI→WebView messages to debug which controls work
+    if (action !== 'setCalcFactor') { // CalcFactor spammt bei Slider-Bewegung
+      if (params === undefined) {
+        console.log('📤 UI→WebView:', action);
+      } else {
+        console.log('📤 UI→WebView:', action, params);
       }
-      webViewRef.current.postMessage(message);
+    }
+
+    if (Platform.OS === "web") {
+      // Web: iframe
+      if (webViewRef.current && webViewRef.current.contentWindow) {
+        const message = JSON.stringify({ action, params });
+        webViewRef.current.contentWindow.postMessage(message, '*');
+      }
+    } else {
+      // Mobile: WebView
+      if (webViewRef.current) {
+        const message = JSON.stringify({ action, params });
+        webViewRef.current.postMessage(message);
+      }
     }
   };
 
@@ -390,6 +401,15 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
 
     // Then reset with new parameters
     sendToWebView('new');
+  };
+
+  // Handle Play/Pause toggle (single button)
+  const handleTogglePlayPause = () => {
+    if (isRunning) {
+      sendToWebView('stop');
+    } else {
+      sendToWebView('start');
+    }
   };
 
   // Handle "Reset" button - reset all parameters to defaults
@@ -461,14 +481,12 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
         // It's sent separately via 'turnSpeedUpdate' when changed
 
         const newBallCount = data.ballCount || 30;
-        setActualBallCount(prevActual => {
-          if (newBallCount !== prevActual && newBallCount === ballCount) {
+        // Nur updaten wenn signifikante Änderung (vermeidet Flackern bei kurzen Dips während reset)
+        setActualBallCount(prev => {
+          if (Math.abs(newBallCount - prev) >= 5) {
             return newBallCount;
           }
-          if (newBallCount !== 30 && newBallCount !== prevActual) {
-            return newBallCount;
-          }
-          return prevActual;
+          return prev;
         });
       }
 
@@ -493,6 +511,14 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
       // WebView signals it's ready - resend all current settings
       if (data.type === 'initialized') {
         console.log('🎬 WebView initialized - resending settings...');
+
+        // Only process initialization ONCE to prevent reload loop
+        if (initializedRef.current) {
+          console.log('⏭️ Already initialized, skipping resend');
+          return;
+        }
+        initializedRef.current = true;
+
         console.log('📊 Current UI state:', {
           ballCount,
           actualBallCount,
@@ -704,891 +730,40 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
     }
   };
 
+  // === UNIFIED UI FOR ALL PLATFORMS ===
+  // Fullscreen WebView with tap-to-menu overlay on all platforms
 
-  // Auf Web verwenden wir einen iframe statt WebView für bessere Kompatibilität
-  if (Platform.OS === "web") {
-    // Dynamische Styles für Top/Bottom Stereo
-    const isTopBottomStereo = stereoMode === 'topbottom';
-    const containerStyle = isTopBottomStereo
-      ? [styles.containerWeb, styles.containerTopBottomStereo]
-      : styles.containerWeb;
-    const sidebarStyle = isTopBottomStereo
-      ? [styles.sidebarWeb, styles.sidebarTopBottomStereo]
-      : styles.sidebarWeb;
-
-    return (
-      <View style={containerStyle}>
-        {/* PaDIPS Control Panel - Links wie im Original */}
-        <ScrollView style={sidebarStyle} contentContainerStyle={styles.sidebarContent}>
-          <Text style={styles.title}>🎱 PaDIPS</Text>
-
-          {/* Main Controls */}
-          <View style={styles.section}>
-            <View style={styles.buttonRow}>
-              <TouchableOpacity
-                style={[styles.startButton, isRunning && styles.buttonDisabled]}
-                onPress={() => sendToIframe('start')}
-                disabled={isRunning}
-              >
-                <Text style={styles.buttonText}>▶ Start</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.stopButton, !isRunning && styles.buttonDisabled]}
-                onPress={() => sendToIframe('stop')}
-                disabled={!isRunning}
-              >
-                <Text style={styles.buttonText}>⏸ Stop</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.newButton}
-                onPress={() => {
-                  // Validate and correct parameters locally first
-                  let finalMinRadius = minRadius;
-                  let finalMaxRadius = maxRadius;
-
-                  // If max < min, adjust min to max (same logic as WebView)
-                  if (finalMaxRadius < finalMinRadius) {
-                    console.log('📏 Correcting min to match max locally:', finalMinRadius, '→', finalMaxRadius);
-                    finalMinRadius = finalMaxRadius;
-                    setMinRadius(finalMinRadius); // Update UI immediately
-                  }
-
-                  // Sende alle Ball-Parameter VOR dem Reset
-                  sendToIframe('setBallCount', ballCount);
-                  sendToIframe('setMinRadius', finalMinRadius / 100); // Convert cm to m
-                  sendToIframe('setMaxRadius', finalMaxRadius / 100);
-                  sendToIframe('setMaxVelocity', maxVelocity);
-                  sendToIframe('setElasticity', elasticity / 100);
-                  // Dann Reset mit neuen Parametern
-                  sendToIframe('new');
-                }}
-              >
-                <Text style={styles.buttonText}>✨ New</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Stats */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>📊 Stats</Text>
-            <View style={styles.statsGrid}>
-              <View style={styles.statsRow}>
-                <Text style={styles.statText}>FPS: {fps}</Text>
-                <Text style={styles.statText}>Balls: {actualBallCount}</Text>
-              </View>
-              <View style={styles.statsRow}>
-                <Text style={styles.statText}>Gen: {generation}</Text>
-                <Text style={styles.statText}>Checks: {checks}</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Balls Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🎱 Balls - click "New" to apply</Text>
-
-            <View style={styles.sliderContainer}>
-              <Text style={styles.label}>Number of Balls: {ballCount}</Text>
-              <Slider
-                style={styles.slider}
-                minimumValue={5}
-                maximumValue={1000}
-                step={5}
-                value={ballCount}
-                onValueChange={setBallCount}
-                minimumTrackTintColor="#4CAF50"
-                maximumTrackTintColor="#ddd"
-              />
-            </View>
-
-            <View style={styles.sliderContainer}>
-              <Text style={styles.label}>Min Radius: {(minRadius / 100).toFixed(2)} m</Text>
-              <Slider
-                style={styles.slider}
-                minimumValue={2}
-                maximumValue={30}
-                step={1}
-                value={minRadius}
-                onValueChange={setMinRadius}
-                minimumTrackTintColor="#4CAF50"
-                maximumTrackTintColor="#ddd"
-              />
-            </View>
-
-            <View style={styles.sliderContainer}>
-              <Text style={styles.label}>Max Radius: {(maxRadius / 100).toFixed(2)} m</Text>
-              <Slider
-                style={styles.slider}
-                minimumValue={2}
-                maximumValue={30}
-                step={1}
-                value={maxRadius}
-                onValueChange={setMaxRadius}
-                minimumTrackTintColor="#4CAF50"
-                maximumTrackTintColor="#ddd"
-              />
-            </View>
-
-            <View style={styles.sliderContainer}>
-              <Text style={styles.label}>Max Velocity: {maxVelocity.toFixed(1)} m/s</Text>
-              <Slider
-                style={styles.slider}
-                minimumValue={0.5}
-                maximumValue={10.0}
-                step={0.5}
-                value={maxVelocity}
-                onValueChange={setMaxVelocity}
-                minimumTrackTintColor="#4CAF50"
-                maximumTrackTintColor="#ddd"
-              />
-            </View>
-
-            <View style={styles.sliderContainer}>
-              <Text style={styles.label}>Elasticity: {(elasticity / 100).toFixed(2)}</Text>
-              <Slider
-                style={styles.slider}
-                minimumValue={0}
-                maximumValue={100}
-                step={5}
-                value={elasticity}
-                onValueChange={setElasticity}
-                minimumTrackTintColor="#4CAF50"
-                maximumTrackTintColor="#ddd"
-              />
-            </View>
-          </View>
-
-          {/* Simulation Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>⚙️ Simulation</Text>
-
-            <View style={styles.sliderContainer}>
-              <Text style={styles.label}>Calc Factor: {calcFactor}</Text>
-              <Slider
-                style={styles.slider}
-                minimumValue={1}
-                maximumValue={50}
-                step={1}
-                value={calcFactor}
-                onValueChange={setCalcFactor}
-                onSlidingComplete={(value) => {
-                  sendToIframe('setCalcFactor', value);
-                }}
-                minimumTrackTintColor="#FF9800"
-                maximumTrackTintColor="#ddd"
-              />
-            </View>
-
-            <View style={styles.toggleContainer}>
-              <Text style={styles.label}>Collisions Enabled</Text>
-              <Switch
-                value={collisionsEnabled}
-                onValueChange={(value) => {
-                  setCollisionsEnabled(value);
-                  sendToIframe('setCollisionsEnabled', value);
-                }}
-                trackColor={{ false: "#ddd", true: "#4CAF50" }}
-              />
-            </View>
-
-            <View style={styles.toggleContainer}>
-              <Text style={styles.label}>Show Collision Checks</Text>
-              <Switch
-                value={showCollisionChecks}
-                onValueChange={(value) => {
-                  setShowCollisionChecks(value);
-                  sendToIframe('setShowCollisionChecks', value);
-                }}
-                trackColor={{ false: "#ddd", true: "#4CAF50" }}
-              />
-            </View>
-          </View>
-
-          {/* Grid System */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🔲 Grid System</Text>
-            <View style={styles.toggleContainer}>
-              <Text style={styles.label}>Grid-based Collision</Text>
-              <Switch
-                value={gridEnabled}
-                onValueChange={(value) => {
-                  setGridEnabled(value);
-                  if (value) {
-                    // Aktivieren: Apply Grid mit aktuellen Segments
-                    sendToIframe('applyGrid', { segments: gridSegments });
-                  } else {
-                    // Deaktivieren: Grid ausschalten
-                    sendToIframe('disableGrid');
-                  }
-                }}
-                trackColor={{ false: "#ddd", true: "#4CAF50" }}
-              />
-            </View>
-
-            {gridEnabled && (
-              <>
-                <View style={styles.sliderContainer}>
-                  <Text style={styles.label}>Grid Segments: {gridSegments}</Text>
-                  <Slider
-                    style={styles.slider}
-                    minimumValue={2}
-                    maximumValue={25}
-                    step={1}
-                    value={gridSegments}
-                    onValueChange={setGridSegments}
-                    onSlidingComplete={(value) => {
-                      // Direkt anwenden beim Loslassen
-                      sendToIframe('applyGrid', { segments: value });
-                    }}
-                    minimumTrackTintColor="#4CAF50"
-                    maximumTrackTintColor="#ddd"
-                  />
-                </View>
+  // Helper to send messages (works for both iframe and WebView)
+  const sendMessage = (action, params) => {
+    if (Platform.OS === "web") {
+      // Web: iframe
+      sendToIframe(action, params);
+    } else {
+      // Mobile: WebView
+      if (webViewRef.current) {
+        const message = JSON.stringify({ action, params });
+        webViewRef.current.postMessage(message);
+      }
+    }
+  };
 
 
-                <View style={styles.toggleContainer}>
-                  <Text style={styles.smallLabel}>Show World Grid</Text>
-                  <Switch
-                    value={showWorldGrid}
-                    onValueChange={(value) => {
-                      setShowWorldGrid(value);
-                      sendToIframe('setShowWorldGrid', value);
-                    }}
-                    trackColor={{ false: "#ddd", true: "#4CAF50" }}
-                  />
-                </View>
 
-                <View style={styles.toggleContainer}>
-                  <Text style={styles.smallLabel}>Show Occupied Voxels</Text>
-                  <Switch
-                    value={showOccupiedVoxels}
-                    onValueChange={(value) => {
-                      setShowOccupiedVoxels(value);
-                      sendToIframe('setShowOccupiedVoxels', value);
-                    }}
-                    trackColor={{ false: "#ddd", true: "#4CAF50" }}
-                  />
-                </View>
-              </>
-            )}
-          </View>
-
-          {/* Physics Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🌍 Physics</Text>
-
-            <View style={styles.pickerContainer}>
-              <Text style={styles.label}>Gravity Preset</Text>
-              <select
-                value={gravityPreset}
-                onChange={(e) => {
-                  const preset = e.target.value;
-                  setGravityPreset(preset);
-                  sendToIframe('setGravityPreset', { preset, magnitude: gravityMagnitude });
-                }}
-                style={{
-                  padding: '8px',
-                  borderRadius: '4px',
-                  border: '1px solid #ddd',
-                  backgroundColor: 'white',
-                  fontSize: '13px',
-                  width: '100%',
-                  marginTop: '4px'
-                }}
-              >
-                <option value="ZERO">🚫 Zero</option>
-                <option value="DOWN">⬇️ Down</option>
-                <option value="UP">⬆️ Up</option>
-                <option value="LEFT">⬅️ Left</option>
-                <option value="RIGHT">➡️ Right</option>
-                <option value="FRONT">🔽 Front</option>
-                <option value="REAR">🔼 Rear</option>
-              </select>
-            </View>
-
-            <View style={styles.sliderContainer}>
-              <Text style={styles.label}>Gravity Magnitude: {gravityMagnitude.toFixed(1)} m/s²</Text>
-              <Slider
-                style={styles.slider}
-                minimumValue={0}
-                maximumValue={20}
-                step={0.5}
-                value={gravityMagnitude}
-                onValueChange={setGravityMagnitude}
-                onSlidingComplete={(value) => {
-                  sendToIframe('setGravityPreset', { preset: gravityPreset, magnitude: value });
-                }}
-                minimumTrackTintColor="#2196F3"
-                maximumTrackTintColor="#ddd"
-              />
-            </View>
-
-            <View style={styles.sliderContainer}>
-              <Text style={styles.label}>Global Elasticity: {(globalElasticity / 100).toFixed(2)}</Text>
-              <Slider
-                style={styles.slider}
-                minimumValue={0}
-                maximumValue={100}
-                step={5}
-                value={globalElasticity}
-                onValueChange={setGlobalElasticity}
-                onSlidingComplete={(value) => {
-                  sendToIframe('setGlobalElasticity', value / 100);
-                }}
-                minimumTrackTintColor="#2196F3"
-                maximumTrackTintColor="#ddd"
-              />
-            </View>
-          </View>
-
-          {/* Rendering Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🎨 Rendering</Text>
-
-            <View style={styles.pickerContainer}>
-              <Text style={styles.label}>Draw Mode</Text>
-              <select
-                value={drawMode}
-                onChange={(e) => {
-                  const mode = e.target.value;
-                  setDrawMode(mode);
-                  sendToIframe('setDrawMode', mode);
-                }}
-                style={{
-                  padding: '8px',
-                  borderRadius: '4px',
-                  border: '1px solid #ddd',
-                  backgroundColor: 'white',
-                  fontSize: '13px',
-                  width: '100%',
-                  marginTop: '4px'
-                }}
-              >
-                <option value="LIGHTED">Lighted</option>
-                <option value="WIREFRAME">Wireframe</option>
-                <option value="POINTS">Points</option>
-                <option value="SILVER">Silver</option>
-              </select>
-            </View>
-
-            <View style={styles.sliderContainer}>
-              <Text style={styles.label}>Wireframe Density: {wireframeSegments}</Text>
-              <Slider
-                style={styles.slider}
-                minimumValue={4}
-                maximumValue={32}
-                step={2}
-                value={wireframeSegments}
-                onValueChange={setWireframeSegments}
-                onSlidingComplete={(value) => {
-                  sendToIframe('setWireframeSegments', value);
-                }}
-                minimumTrackTintColor="#9C27B0"
-                maximumTrackTintColor="#ddd"
-              />
-            </View>
-          </View>
-
-          {/* Stereo Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🕶️ 3D Stereo</Text>
-
-            <View style={styles.radioGroup}>
-              <Text style={styles.label}>Stereo Mode</Text>
-
-              <TouchableOpacity
-                style={styles.radioOption}
-                onPress={() => {
-                  setStereoMode('off');
-                  sendToIframe('setStereoMode', 'off');
-                }}
-              >
-                <View style={[styles.radioCircle, stereoMode === 'off' && styles.radioCircleSelected]}>
-                  {stereoMode === 'off' && <View style={styles.radioCircleInner} />}
-                </View>
-                <Text style={styles.radioLabel}>❌ Off</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.radioOption}
-                onPress={() => {
-                  setStereoMode('anaglyph');
-                  sendToIframe('setStereoMode', 'anaglyph');
-                }}
-              >
-                <View style={[styles.radioCircle, stereoMode === 'anaglyph' && styles.radioCircleSelected]}>
-                  {stereoMode === 'anaglyph' && <View style={styles.radioCircleInner} />}
-                </View>
-                <Text style={styles.radioLabel}>🕶️ Anaglyph (Red-Blue)</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.radioOption}
-                onPress={() => {
-                  setStereoMode('topbottom');
-                  sendToIframe('setStereoMode', 'topbottom');
-                }}
-              >
-                <View style={[styles.radioCircle, stereoMode === 'topbottom' && styles.radioCircleSelected]}>
-                  {stereoMode === 'topbottom' && <View style={styles.radioCircleInner} />}
-                </View>
-                <Text style={styles.radioLabel}>📺 Top-Bottom Split</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.sliderContainer}>
-              <Text style={styles.label}>Eye Separation: {(eyeSeparation / 100).toFixed(3)} m</Text>
-              <Slider
-                style={styles.slider}
-                minimumValue={2}
-                maximumValue={20}
-                step={0.2}
-                value={eyeSeparation}
-                onValueChange={setEyeSeparation}
-                onSlidingComplete={(value) => {
-                  sendToIframe('setEyeSeparation', value / 100);
-                }}
-                minimumTrackTintColor="#E91E63"
-                maximumTrackTintColor="#ddd"
-              />
-            </View>
-
-            <View style={styles.sliderContainer}>
-              <Text style={styles.label}>Cube Depth: {(cubeDepth * 0.1).toFixed(1)} m</Text>
-              <View style={styles.cubeDepthSliderWrapper}>
-                {/* Visual center marker */}
-                <View style={styles.cubeDepthCenterMarker} />
-                <Slider
-                  style={styles.slider}
-                  minimumValue={-20}
-                  maximumValue={20}
-                  step={1}
-                  value={cubeDepth}
-                  onValueChange={setCubeDepth}
-                  onSlidingComplete={(value) => {
-                    sendToIframe('setCubeDepth', value * 0.1);
-                  }}
-                  minimumTrackTintColor={cubeDepth < 0 ? "#2196F3" : "#E91E63"}
-                  maximumTrackTintColor={cubeDepth > 0 ? "#2196F3" : "#ddd"}
-                  thumbTintColor="#E91E63"
-                />
-              </View>
-              <View style={styles.sliderLabels}>
-                <Text style={styles.sliderLabelText}>-2.0m (closer)</Text>
-                <Text style={styles.sliderLabelCenter}>0 (default)</Text>
-                <Text style={styles.sliderLabelText}>+2.0m (farther)</Text>
-              </View>
-            </View>
-
-            <View style={styles.sliderContainer}>
-              <Text style={styles.label}>Turn Speed: {turnSpeed === 0 ? 'OFF' : `${turnSpeed}x`}</Text>
-              <Slider
-                style={styles.slider}
-                minimumValue={0}
-                maximumValue={4}
-                step={1}
-                value={turnSpeed}
-                onValueChange={setTurnSpeed}
-                onSlidingComplete={(value) => {
-                  if (value === 0) {
-                    sendToIframe('setAutoRotation', { enabled: false });
-                  } else {
-                    sendToIframe('setAutoRotation', { enabled: true, speed: value });
-                  }
-                }}
-                minimumTrackTintColor="#FF9800"
-                maximumTrackTintColor="#ddd"
-                thumbTintColor="#FF9800"
-              />
-            </View>
-          </View>
-
-          {/* Keyboard Shortcuts */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>⌨️ Shortcuts</Text>
-            <Text style={styles.smallText}>Press [F1] for full help</Text>
-          </View>
-        </ScrollView>
-
-        {/* iframe für Web - Nimmt restlichen Platz */}
-        <iframe
-          ref={webViewRef}
-          src={webAppUri}
-          onLoad={() => {
-            console.log('📺 iframe loaded');
-            setWebViewLoaded(true);
-          }}
-          style={{
-            flex: 1,
-            border: "none",
-          }}
-          title="PaDIPS Simulation"
-        />
-
-        {/* Schwarzer Bereich für untere Hälfte im Top/Bottom Stereo */}
-        {isTopBottomStereo && (
-          <View style={styles.bottomHalfBlack} />
-        )}
-      </View>
-    );
-  }
-
-  // === MOBILE LAYOUTS ===
-
-  // VR Mode (Cardboard) - Fullscreen with optional overlay
-  if (isVRMode) {
-    return (
-      <SafeAreaView style={styles.vrContainer} edges={[]}>
-        <StatusBar barStyle="light-content" backgroundColor="#000" />
-        {/* Fullscreen WebView */}
-        <PersistentWebView
-          webAppUri={webAppUri}
-          webViewRef={webViewRef}
-          injectedJavaScript={injectedJavaScript}
-          onMessage={handleWebViewMessage}
-        />
-
-        {/* VR Tap Indicators (fade after 3s) - only shown initially */}
-        <VRIndicators
-          visible={showVRIndicators}
-          onLeftTap={() => {
-            setShowVRMenu(true);
-            setShowVRIndicators(false);
-          }}
-          onRightTap={() => {
-            setShowVRMenu(true);
-            setShowVRIndicators(false);
-          }}
-        />
-
-        {/* Tap zones to open menu directly (always active when menu is closed) */}
-        {!showVRMenu && (
-          <>
-            <TouchableOpacity
-              style={styles.vrHiddenTapZoneLeft}
-              onPress={() => {
-                setShowVRMenu(true);
-                setShowVRIndicators(false);
-              }}
-            />
-            <TouchableOpacity
-              style={styles.vrHiddenTapZoneRight}
-              onPress={() => {
-                setShowVRMenu(true);
-                setShowVRIndicators(false);
-              }}
-            />
-          </>
-        )}
-
-        {/* VR Menu Overlay */}
-        <VRMenuOverlay
-          visible={showVRMenu}
-          onClose={() => setShowVRMenu(false)}
-          onExitVR={() => {
-            // Turn off stereo mode to exit VR
-            setStereoMode('off');
-            sendToWebView('setStereoMode', 'off');
-            setShowVRMenu(false);
-          }}
-        >
-          <StatsPanel fps={fps} ballCount={actualBallCount} generation={generation} checks={checks} />
-          <MainControls
-            onStart={() => sendToWebView('start')}
-            onStop={() => sendToWebView('stop')}
-            onNew={() => handleNew()}
-            onReset={() => handleReset()}
-            isRunning={isRunning}
-          />
-
-          {/* Compact VR Controls - 2-column Toggle Layout */}
-          <View style={{ padding: 8, backgroundColor: '#f9f9f9', borderRadius: 6, marginTop: 8 }}>
-            {/* Row 1: Silver & Gravity */}
-            <View style={styles.vrToggleRow}>
-              <View style={styles.vrToggleItem}>
-                <Text style={styles.vrToggleLabel}>✨ Silver</Text>
-                <Switch
-                  value={drawMode === 'SILVER'}
-                  onValueChange={(val) => {
-                    const newMode = val ? 'SILVER' : 'LIGHTED';
-                    setDrawMode(newMode);
-                    sendToWebView('setDrawMode', newMode);
-                  }}
-                  trackColor={{ false: '#ccc', true: '#4CAF50' }}
-                  thumbColor={drawMode === 'SILVER' ? '#fff' : '#f4f3f4'}
-                />
-              </View>
-
-              <View style={styles.vrToggleItem}>
-                <Text style={styles.vrToggleLabel}>🌍 Gravity</Text>
-                <Switch
-                  value={gravityPreset === 'DOWN'}
-                  onValueChange={(val) => {
-                    const newPreset = val ? 'DOWN' : 'ZERO';
-                    setGravityPreset(newPreset);
-                    sendToWebView('setGravityPreset', { preset: newPreset, magnitude: gravityMagnitude });
-                  }}
-                  trackColor={{ false: '#ccc', true: '#4CAF50' }}
-                  thumbColor={gravityPreset === 'DOWN' ? '#fff' : '#f4f3f4'}
-                />
-              </View>
-            </View>
-
-            {/* Row 2: Grid & Checks */}
-            <View style={styles.vrToggleRow}>
-              <View style={styles.vrToggleItem}>
-                <Text style={styles.vrToggleLabel}>🔲 Grid</Text>
-                <Switch
-                  value={gridEnabled}
-                  onValueChange={(val) => {
-                    setGridEnabled(val);
-                    if (val) {
-                      sendToWebView('applyGrid', { segments: gridSegments });
-                    } else {
-                      sendToWebView('disableGrid');
-                    }
-                  }}
-                  trackColor={{ false: '#ccc', true: '#4CAF50' }}
-                  thumbColor={gridEnabled ? '#fff' : '#f4f3f4'}
-                />
-              </View>
-
-              <View style={styles.vrToggleItem}>
-                <Text style={styles.vrToggleLabel}>🔍 Checks</Text>
-                <Switch
-                  value={showCollisionChecks}
-                  onValueChange={(val) => {
-                    setShowCollisionChecks(val);
-                    sendToWebView('setShowCollisionChecks', val);
-                  }}
-                  trackColor={{ false: '#ccc', true: '#4CAF50' }}
-                  thumbColor={showCollisionChecks ? '#fff' : '#f4f3f4'}
-                />
-              </View>
-            </View>
-
-            {/* Row 3: Voxels (single item centered) */}
-            <View style={styles.vrToggleRow}>
-              <View style={styles.vrToggleItem}>
-                <Text style={styles.vrToggleLabel}>📦 Voxels</Text>
-                <Switch
-                  value={showOccupiedVoxels}
-                  onValueChange={(val) => {
-                    setShowOccupiedVoxels(val);
-                    sendToWebView('setShowOccupiedVoxels', val);
-                  }}
-                  trackColor={{ false: '#ccc', true: '#4CAF50' }}
-                  thumbColor={showOccupiedVoxels ? '#fff' : '#f4f3f4'}
-                />
-              </View>
-            </View>
-
-            {/* Ball Count Buttons */}
-            <View style={{ marginTop: 12 }}>
-              <Text style={styles.vrToggleLabel}>🎱 Balls: {actualBallCount}</Text>
-              <View style={[styles.vrToggleRow, { marginTop: 4 }]}>
-                <TouchableOpacity
-                  style={[styles.vrBallButton, styles.vrBallButtonMinus]}
-                  onPress={() => {
-                    const newCount = Math.max(5, ballCount - 50);
-                    setBallCount(newCount);
-                    sendToWebView('setBallCount', newCount);
-                    sendToWebView('new');
-                  }}
-                >
-                  <Text style={styles.vrBallButtonText}>-50</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.vrBallButton, styles.vrBallButtonPlus]}
-                  onPress={() => {
-                    const newCount = Math.min(1000, ballCount + 50);
-                    setBallCount(newCount);
-                    sendToWebView('setBallCount', newCount);
-                    sendToWebView('new');
-                  }}
-                >
-                  <Text style={styles.vrBallButtonText}>+50</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Eye Separation Slider */}
-            <View style={{ marginTop: 12 }}>
-              <Text style={styles.vrToggleLabel}>👁️ Eye Sep: {eyeSeparation.toFixed(1)} cm</Text>
-              <Slider
-                style={{ width: '100%', height: 30 }}
-                minimumValue={5}
-                maximumValue={15}
-                step={0.2}
-                value={eyeSeparation}
-                onValueChange={(val) => {
-                  setEyeSeparation(val);
-                  sendToWebView('setEyeSeparation', val / 100);
-                }}
-                minimumTrackTintColor="#2196F3"
-                maximumTrackTintColor="#ddd"
-                thumbTintColor="#2196F3"
-              />
-            </View>
-
-            {/* Turn Speed Slider */}
-            <View style={{ marginTop: 12 }}>
-              <Text style={styles.vrToggleLabel}>🔄 Turn: {turnSpeed === 0 ? 'OFF' : `${turnSpeed}x`}</Text>
-              <Slider
-                style={{ width: '100%', height: 30 }}
-                minimumValue={0}
-                maximumValue={4}
-                step={1}
-                value={turnSpeed}
-                onValueChange={(val) => {
-                  setTurnSpeed(val);
-                  if (val === 0) {
-                    sendToWebView('setAutoRotation', { enabled: false });
-                  } else {
-                    sendToWebView('setAutoRotation', { enabled: true, speed: val });
-                  }
-                }}
-                minimumTrackTintColor="#FF9800"
-                maximumTrackTintColor="#ddd"
-                thumbTintColor="#FF9800"
-              />
-            </View>
-          </View>
-        </VRMenuOverlay>
-      </SafeAreaView>
-    );
-  }
-
-
-  // Portrait Mode - Stats + WebView (square) + Controls (scrollable)
-  if (isPortrait) {
-    return (
-      <SafeAreaView style={styles.containerPortrait} edges={['top', 'left', 'right', 'bottom']}>
-        <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
-        {/* Stats at top */}
-        <StatsPanel fps={fps} ballCount={actualBallCount} generation={generation} checks={checks} />
-
-        {/* Main Controls (sticky) */}
-        <MainControls
-          onStart={() => sendToWebView('start')}
-          onStop={() => sendToWebView('stop')}
-          onNew={() => handleNew()}
-          onReset={() => handleReset()}
-          isRunning={isRunning}
-        />
-
-        {/* WebView - Square, centered */}
-        <View style={styles.webViewContainerPortrait}>
-          <PersistentWebView
-            webAppUri={webAppUri}
-            webViewRef={webViewRef}
-            injectedJavaScript={injectedJavaScript}
-            onMessage={handleWebViewMessage}
-          />
-        </View>
-
-        {/* Controls below - scrollable */}
-        <ControlsPanel
-          ballCount={ballCount}
-          setBallCount={setBallCount}
-          minRadius={minRadius}
-          setMinRadius={setMinRadius}
-          maxRadius={maxRadius}
-          setMaxRadius={setMaxRadius}
-          gravityPreset={gravityPreset}
-          setGravityPreset={setGravityPreset}
-          gravityMagnitude={gravityMagnitude}
-          collisionsEnabled={collisionsEnabled}
-          setCollisionsEnabled={setCollisionsEnabled}
-          calcFactor={calcFactor}
-          setCalcFactor={setCalcFactor}
-          gridEnabled={gridEnabled}
-          setGridEnabled={setGridEnabled}
-          gridSegments={gridSegments}
-          setGridSegments={setGridSegments}
-          showWorldGrid={showWorldGrid}
-          setShowWorldGrid={setShowWorldGrid}
-          showOccupiedVoxels={showOccupiedVoxels}
-          setShowOccupiedVoxels={setShowOccupiedVoxels}
-          showCollisionChecks={showCollisionChecks}
-          setShowCollisionChecks={setShowCollisionChecks}
-          drawMode={drawMode}
-          setDrawMode={setDrawMode}
-          wireframeSegments={wireframeSegments}
-          setWireframeSegments={setWireframeSegments}
-          stereoMode={stereoMode}
-          setStereoMode={setStereoMode}
-          eyeSeparation={eyeSeparation}
-          setEyeSeparation={setEyeSeparation}
-          cubeDepth={cubeDepth}
-          setCubeDepth={setCubeDepth}
-          turnSpeed={turnSpeed}
-          setTurnSpeed={setTurnSpeed}
-          sendToWebView={sendToWebView}
-          isPortrait={true}
-        />
-      </SafeAreaView>
-    );
-  }
-
-  // Landscape Mode - Sidebar (left) + WebView (right)
   return (
-    <SafeAreaView style={styles.containerLandscape} edges={['left', 'right', 'bottom']}>
-      <StatusBar barStyle="light-content" backgroundColor="#000" />
-      {/* Sidebar on left */}
-      <View style={styles.sidebarLandscape}>
-        <StatsPanel fps={fps} ballCount={actualBallCount} generation={generation} checks={checks} />
-        <MainControls
-          onStart={() => sendToWebView('start')}
-          onStop={() => sendToWebView('stop')}
-          onNew={() => handleNew()}
-          onReset={() => handleReset()}
-          isRunning={isRunning}
-        />
-        <ControlsPanel
-          ballCount={ballCount}
-          setBallCount={setBallCount}
-          minRadius={minRadius}
-          setMinRadius={setMinRadius}
-          maxRadius={maxRadius}
-          setMaxRadius={setMaxRadius}
-          gravityPreset={gravityPreset}
-          setGravityPreset={setGravityPreset}
-          gravityMagnitude={gravityMagnitude}
-          collisionsEnabled={collisionsEnabled}
-          setCollisionsEnabled={setCollisionsEnabled}
-          calcFactor={calcFactor}
-          setCalcFactor={setCalcFactor}
-          gridEnabled={gridEnabled}
-          setGridEnabled={setGridEnabled}
-          gridSegments={gridSegments}
-          setGridSegments={setGridSegments}
-          showWorldGrid={showWorldGrid}
-          setShowWorldGrid={setShowWorldGrid}
-          showOccupiedVoxels={showOccupiedVoxels}
-          setShowOccupiedVoxels={setShowOccupiedVoxels}
-          showCollisionChecks={showCollisionChecks}
-          setShowCollisionChecks={setShowCollisionChecks}
-          drawMode={drawMode}
-          setDrawMode={setDrawMode}
-          wireframeSegments={wireframeSegments}
-          setWireframeSegments={setWireframeSegments}
-          stereoMode={stereoMode}
-          setStereoMode={setStereoMode}
-          eyeSeparation={eyeSeparation}
-          setEyeSeparation={setEyeSeparation}
-          cubeDepth={cubeDepth}
-          setCubeDepth={setCubeDepth}
-          turnSpeed={turnSpeed}
-          setTurnSpeed={setTurnSpeed}
-          sendToWebView={sendToWebView}
-          isPortrait={false}
-        />
-      </View>
+    <SafeAreaView style={styles.unifiedContainer} edges={[]}>
+      <StatusBar
+        barStyle={showMenu ? "light-content" : "dark-content"}
+        backgroundColor={showMenu ? "rgba(255,255,255,0.95)" : "#fff"}
+      />
 
-      {/* WebView on right */}
-      <View style={{ flex: 1 }}>
+      {/* WebView Container - Platform/Orientation specific sizing */}
+      <View style={[
+        styles.webViewContainer,
+        Platform.OS === 'web' && styles.webViewContainerWeb,
+        Platform.OS === 'web' && (stereoMode === 'topbottom' || stereoMode === 'sidebyside') && styles.webViewContainerWebStereo,
+        Platform.OS !== 'web' && isPortrait && styles.webViewContainerPortrait,
+        Platform.OS !== 'web' && !isPortrait && styles.webViewContainerLandscape,
+      ]}>
         <PersistentWebView
           webAppUri={webAppUri}
           webViewRef={webViewRef}
@@ -1596,357 +771,117 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           onMessage={handleWebViewMessage}
         />
       </View>
+
+      {/* Tap Zones (bottom corners) */}
+      <TapZones
+        onTapLeft={() => {
+          setShowMenu(true);
+          setShowTapIndicators(false);
+        }}
+        onTapRight={() => {
+          setShowMenu(true);
+          setShowTapIndicators(false);
+        }}
+        showIndicators={showTapIndicators && !showMenu}
+      />
+
+      {/* Menu Overlay */}
+      <UnifiedMenuOverlay
+        visible={showMenu}
+        onClose={() => setShowMenu(false)}
+        fps={fps}
+        ballCount={actualBallCount}
+        generation={generation}
+        checks={checks}
+        isRunning={isRunning}
+        drawMode={drawMode}
+        setDrawMode={setDrawMode}
+        gravityPreset={gravityPreset}
+        setGravityPreset={setGravityPreset}
+        gravityMagnitude={gravityMagnitude}
+        setGravityMagnitude={setGravityMagnitude}
+        gridEnabled={gridEnabled}
+        setGridEnabled={setGridEnabled}
+        gridSegments={gridSegments}
+        setGridSegments={setGridSegments}
+        showWorldGrid={showWorldGrid}
+        setShowWorldGrid={setShowWorldGrid}
+        showOccupiedVoxels={showOccupiedVoxels}
+        setShowOccupiedVoxels={setShowOccupiedVoxels}
+        showCollisionChecks={showCollisionChecks}
+        setShowCollisionChecks={setShowCollisionChecks}
+        stereoMode={stereoMode}
+        setStereoMode={setStereoMode}
+        eyeSeparation={eyeSeparation}
+        setEyeSeparation={setEyeSeparation}
+        cubeDepth={cubeDepth}
+        setCubeDepth={setCubeDepth}
+        turnSpeed={turnSpeed}
+        setTurnSpeed={setTurnSpeed}
+        minRadius={minRadius}
+        setMinRadius={setMinRadius}
+        maxRadius={maxRadius}
+        setMaxRadius={setMaxRadius}
+        maxVelocity={maxVelocity}
+        setMaxVelocity={setMaxVelocity}
+        elasticity={elasticity}
+        setElasticity={setElasticity}
+        calcFactor={calcFactor}
+        setCalcFactor={setCalcFactor}
+        collisionsEnabled={collisionsEnabled}
+        setCollisionsEnabled={setCollisionsEnabled}
+        wireframeSegments={wireframeSegments}
+        setWireframeSegments={setWireframeSegments}
+        sendToWebView={sendMessage}
+        onTogglePlayPause={handleTogglePlayPause}
+        onReset={handleReset}
+        isPortrait={isPortrait}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  unifiedContainer: {
     flex: 1,
-    backgroundColor: Platform.OS === 'ios' ? "#f5f5f5" : "#fff",
-  },
-  containerWeb: {
-    flex: 1,
-    flexDirection: "row", // Sidebar links, Canvas rechts
-    backgroundColor: "#fff",
-  },
-  containerTopBottomStereo: {
-    height: "50vh", // Nur obere Hälfte im Top/Bottom Stereo
-  },
-  sidebarWeb: {
-    width: 280,
-    minWidth: 280,
-    maxWidth: 280,
-    flexShrink: 0,
-    backgroundColor: "rgba(255, 255, 255, 0.95)",
-    borderRightWidth: 1,
-    borderRightColor: "#ddd",
-    shadowColor: "#000",
-    shadowOffset: { width: 2, height: 0 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  sidebarTopBottomStereo: {
-    maxHeight: "50vh", // Sidebar nur in oberer Hälfte
-    overflowY: "auto", // Scrollbar für Sidebar
-  },
-  bottomHalfBlack: {
-    position: "absolute",
-    left: 0,
-    bottom: 0,
-    width: 280, // Gleiche Breite wie Sidebar
-    height: "50vh", // Untere Hälfte
-    backgroundColor: "#000", // Schwarz
-    zIndex: 9999, // Über allem
-    pointerEvents: "none", // Kein Blocking von Interaktionen
-  },
-  sidebarContent: {
-    padding: 12,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 8,
-  },
-  section: {
-    marginBottom: 12,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#555",
-    marginBottom: 4,
-  },
-  statText: {
-    fontSize: 12,
-    color: "#666",
-    marginBottom: 2,
-    flex: 1,
-  },
-  statsGrid: {
-    marginTop: 4,
-  },
-  statsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 2,
-  },
-  label: {
-    fontSize: 12,
-    color: "#666",
-    marginBottom: 2,
-  },
-  smallText: {
-    fontSize: 11,
-    color: "#999",
-    fontStyle: "italic",
-    marginTop: 2,
-  },
-  smallLabel: {
-    fontSize: 11,
-    color: "#666",
-  },
-  sliderContainer: {
-    marginTop: 4,
-    marginBottom: 4,
-  },
-  slider: {
-    width: "100%",
-    height: 40,
-  },
-  cubeDepthSliderWrapper: {
-    position: "relative",
-    width: "100%",
-  },
-  cubeDepthCenterMarker: {
-    position: "absolute",
-    left: "50%",
-    top: 15,
-    width: 2,
-    height: 10,
-    backgroundColor: "#666",
-    marginLeft: -1,
-    zIndex: 0,
-    pointerEvents: "none",
-  },
-  sliderLabels: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: -8,
-    paddingHorizontal: 4,
-  },
-  sliderLabelText: {
-    fontSize: 10,
-    color: "#999",
-  },
-  sliderLabelCenter: {
-    fontSize: 10,
-    color: "#666",
-    fontWeight: "600",
-  },
-  toggleContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 4,
-    marginBottom: 4,
-  },
-  pickerContainer: {
-    marginTop: 4,
-    marginBottom: 6,
-  },
-  radioGroup: {
-    marginTop: 4,
-    marginBottom: 6,
-  },
-  radioOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 4,
-    cursor: "pointer",
-  },
-  radioCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: "#666",
-    marginRight: 8,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  radioCircleSelected: {
-    borderColor: "#4CAF50",
-  },
-  radioCircleInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#4CAF50",
-  },
-  radioLabel: {
-    fontSize: 13,
-    color: "#666",
-  },
-  applyButton: {
-    backgroundColor: "#FF9800",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    marginTop: 4,
-    marginBottom: 4,
-    alignItems: "center",
-  },
-  controlsContainer: {
-    backgroundColor: "#f5f5f5",
-    paddingTop: 6,
-    paddingBottom: 6,
-    paddingHorizontal: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#ddd",
-  },
-  buttonRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginVertical: 2,
-  },
-  startButton: {
-    backgroundColor: "#4CAF50",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    marginHorizontal: 2,
-    minWidth: 70,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  stopButton: {
-    backgroundColor: "#f44336",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    marginHorizontal: 2,
-    minWidth: 70,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  newButton: {
-    backgroundColor: "#2196F3",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    marginHorizontal: 2,
-    minWidth: 70,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  buttonText: {
-    color: "white",
-    fontSize: 14,
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  buttonDisabled: {
-    backgroundColor: "#ccc",
-    opacity: 0.6,
-  },
-  webview: {
-    flex: 1,
+    backgroundColor: '#fff', // Light mode
   },
 
-  // === MOBILE LAYOUTS ===
-
-  // VR Mode (Cardboard)
-  vrContainer: {
-    flex: 1,
+  // WebView Container - Base
+  webViewContainer: {
+    position: 'absolute',
     backgroundColor: '#000',
   },
-  vrWebView: {
-    flex: 1,
-  },
-  vrHiddenTapZoneLeft: {
-    position: 'absolute',
-    left: 0,
-    bottom: 0,
-    width: 80,
-    height: 80,
-    backgroundColor: 'transparent',
-  },
-  vrHiddenTapZoneRight: {
-    position: 'absolute',
-    right: 0,
-    bottom: 0,
-    width: 80,
-    height: 80,
-    backgroundColor: 'transparent',
+
+  // Web: 10% größer (110% = 1.1), zentriert
+  webViewContainerWeb: {
+    top: '50%',
+    left: '50%',
+    width: '110%',
+    height: '110%',
+    transform: [{ translateX: '-50%' }, { translateY: '-50%' }],
   },
 
-  // VR Toggle Rows (2-column layout)
-  vrToggleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  vrToggleItem: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    backgroundColor: '#fff',
-    borderRadius: 6,
-    marginHorizontal: 4,
-  },
-  vrToggleLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#333',
-  },
-  vrBallButton: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 6,
-    marginHorizontal: 4,
-    alignItems: 'center',
-  },
-  vrBallButtonMinus: {
-    backgroundColor: '#f44336',
-  },
-  vrBallButtonPlus: {
-    backgroundColor: '#4CAF50',
-  },
-  vrBallButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
+  // Web Stereo (Top/Bottom oder Side-by-Side): Gleiche Größe, zentriert
+  webViewContainerWebStereo: {
+    width: '110%',
+    height: '110%',
   },
 
-  // Portrait Mode
-  containerPortrait: {
-    flex: 1,
-    backgroundColor: '#f5f5f5', // Light gray - matches Stats panel background
-  },
+  // Mobile Portrait: Quadratisch, oben zentriert, Breite = 100%
   webViewContainerPortrait: {
-    aspectRatio: 1, // Square
+    top: 0,
+    left: 0,
     width: '100%',
-    maxWidth: 500,
-    alignSelf: 'center',
-    backgroundColor: '#000',
-  },
-  webViewPortrait: {
-    flex: 1,
+    aspectRatio: 1, // Quadratisch
   },
 
-  // Landscape Mode
-  containerLandscape: {
-    flex: 1,
-    flexDirection: 'row',
-    backgroundColor: '#000', // Black background so white system icons are visible
-  },
-  sidebarLandscape: {
-    width: 280,
-    borderRightWidth: 1,
-    borderRightColor: '#ddd',
-    backgroundColor: '#f9f9f9',
-  },
-  webViewLandscape: {
-    flex: 1,
+  // Mobile Landscape: Links Platz lassen (20%), Rest für WebView
+  webViewContainerLandscape: {
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
   },
 
   loadingContainer: {

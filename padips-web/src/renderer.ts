@@ -84,10 +84,6 @@ class PaDIPSApp {
     // Update initial stats
     this.updateStats();
 
-    // Try to restore previous state if available (orientation change recovery)
-    // This must run IMMEDIATELY on init, not via message, because WebView is already reloaded
-    console.log('🎬 Initializing - checking for saved state...');
-    this.restoreStateFromStorage();
 
     console.log('🎱 PaDIPS initialized with', this.ballSet.num, 'balls');
 
@@ -406,14 +402,6 @@ class PaDIPSApp {
             }
             break;
 
-          // State persistence for orientation changes
-          case 'saveState':
-            this.saveStateToStorage();
-            console.log('💾 State saved on request');
-            break;
-
-          // Note: restoreState is NOT handled via message anymore
-          // It's called automatically on init because WebView reloads before message arrives
 
           // Forwarded keyboard events
           case 'keydown':
@@ -845,28 +833,36 @@ class PaDIPSApp {
           console.log('⌨️ [S] Draw mode toggled:', newMode);
           break;
 
-        case 'n':
-          // New (reset)
+        case 'a':
+        case 'A':
+          // Apply (was "New" with 'n')
           this.reset();
-          console.log('⌨️ [N] New simulation');
+          console.log('⌨️ [A] Apply - New simulation');
           break;
 
         case '3':
-          // Toggle Top-Bottom 3D Stereo
-          this.toggleStereoMode(StereoMode.TOP_BOTTOM);
-          console.log('⌨️ [3] Top-Bottom stereo toggled');
+          // Toggle Stereo on/off (platform-specific mode)
+          // Web: Top-Bottom, Mobile Portrait: Anaglyph, Mobile Landscape: Side-by-Side
+          const currentStereo = this.sceneManager.getStereoMode();
+          if (currentStereo === StereoMode.OFF) {
+            // Turn on with platform-appropriate mode
+            // Default to Top-Bottom for web/desktop
+            this.sceneManager.setStereoMode(StereoMode.TOP_BOTTOM);
+            this.sendStereoModeUpdate(StereoMode.TOP_BOTTOM);
+            console.log('⌨️ [3] Stereo ON: Top-Bottom');
+          } else {
+            // Turn off
+            this.sceneManager.setStereoMode(StereoMode.OFF);
+            this.sendStereoModeUpdate(StereoMode.OFF);
+            console.log('⌨️ [3] Stereo OFF');
+          }
           break;
 
-        case '4':
-          // Toggle Side-by-Side VR Stereo (for Cardboard)
-          this.toggleStereoMode(StereoMode.SIDE_BY_SIDE);
-          console.log('⌨️ [4] Side-by-Side VR stereo toggled');
-          break;
-
-        case 'a':
-          // Toggle Anaglyph Stereo
+        case 'y':
+        case 'Y':
+          // Toggle Anaglyph Stereo specifically
           this.toggleStereoMode(StereoMode.ANAGLYPH);
-          console.log('⌨️ [A] Anaglyph stereo toggled');
+          console.log('⌨️ [Y] Anaglyph stereo toggled');
           break;
 
         case 't':
@@ -918,23 +914,7 @@ class PaDIPSApp {
       }
     });
 
-    console.log('⌨️ Keyboard shortcuts enabled:');
-    console.log('  [Space] Start/Stop');
-    console.log('  [S] Toggle Lighted ↔ Silver');
-    console.log('  [N] New simulation');
-    console.log('  [G] Toggle Gravity (Down ↔ Zero)');
-    console.log('  [X] Toggle Coordinate Axes (X=red, Y=green, Z=blue)');
-    console.log('  [3] Top-Bottom 3D stereo (repeat=off)');
-    console.log('  [4] Side-by-Side VR stereo (repeat=off)');
-    console.log('  [A] Anaglyph stereo (repeat=off)');
-    console.log('  [T] Turn speed (0x→1x→2x→3x→4x→0x)');
-    console.log('  [W] Wireframe (repeat=shaded)');
-    console.log('  [P] Points (repeat=shaded)');
-    console.log('  [+/-] or [K/J] Add/Remove 50 balls (vi: K=more, J=less)');
-    console.log('  [Shift-+/-] or [Shift-K/J] Wireframe density');
-    console.log('  [Ctrl-+/-] Cube depth');
-    console.log('  [F1] Toggle key help');
-    console.log('  💡 Numpad +/- always works, main keyboard is layout-aware');
+    // Keyboard shortcuts are enabled silently
   }
 
   /**
@@ -1520,6 +1500,9 @@ class PaDIPSApp {
     this.sceneManager.initializeScene(this.ballSet, this.walls);
     console.log('✅ initializeScene complete');
 
+    // Reset camera to initial position and zoom
+    this.sceneManager.resetCamera();
+
     // Force initial render to show balls immediately
     this.sceneManager.render();
     console.log('🖼️ Initial render done');
@@ -1658,195 +1641,6 @@ class PaDIPSApp {
   }
 
   /**
-   * Save current state to sessionStorage (survives WebView remount during orientation changes)
-   */
-  private saveStateToStorage(): void {
-    try {
-      console.log('💾 saveStateToStorage called...');
-
-      const state = {
-        // Ball state
-        ballCount: this.ballSet.num,
-        balls: this.ballSet.balls.map(ball => ({
-          position: { x: ball.position.x, y: ball.position.y, z: ball.position.z },
-          velocity: { x: ball.velocity.x, y: ball.velocity.y, z: ball.velocity.z },
-          radius: ball.radius,
-          color: ball.color,
-        })),
-        generation: this.ballSet.generation,
-
-        // Simulation state
-        isRunning: this.isRunning,
-        calcFactor: this.simulationState.calcFactor,
-        collisionsEnabled: this.simulationState.collisionsEnabled,
-
-        // Physics state
-        gravity: {
-          x: this.global.acceleration.x,
-          y: this.global.acceleration.y,
-          z: this.global.acceleration.z,
-        },
-
-        // Rendering state
-        drawMode: this.sceneManager.getDrawMode(),
-        stereoMode: this.sceneManager.getStereoMode(),
-        turnSpeed: this.turnSpeed,
-
-        // Grid state
-        gridEnabled: this.visualizationState.gridEnabled,
-        gridSegments: {
-          x: this.visualizationState.gridSegments.x,
-          y: this.visualizationState.gridSegments.y,
-          z: this.visualizationState.gridSegments.z,
-        },
-        showWorldGrid: this.visualizationState.showWorldGrid,
-        showOccupiedVoxels: this.visualizationState.showOccupiedVoxels,
-        showCollisionChecks: this.visualizationState.showCollisionChecks,
-
-        timestamp: Date.now(),
-      };
-
-      console.log('💾 State object created:', {
-        ballCount: state.ballCount,
-        generation: state.generation,
-        drawMode: state.drawMode,
-        isRunning: state.isRunning,
-      });
-
-      const stateJson = JSON.stringify(state);
-      console.log('💾 State JSON size:', Math.round(stateJson.length / 1024), 'KB');
-
-      sessionStorage.setItem('padips_state', stateJson);
-
-      // Verify it was saved
-      const saved = sessionStorage.getItem('padips_state');
-      if (saved) {
-        console.log('✅ State saved to sessionStorage successfully');
-      } else {
-        console.error('❌ State was NOT saved to sessionStorage!');
-      }
-    } catch (e) {
-      console.error('❌ Failed to save state:', e);
-    }
-  }
-
-  /**
-   * Restore state from sessionStorage (after WebView remount)
-   */
-  private restoreStateFromStorage(): void {
-    try {
-      console.log('🔄 restoreStateFromStorage called...');
-
-      const savedState = sessionStorage.getItem('padips_state');
-      if (!savedState) {
-        console.log('ℹ️ No saved state found in sessionStorage');
-        return;
-      }
-
-      console.log('🔄 Found saved state, size:', Math.round(savedState.length / 1024), 'KB');
-
-      const state = JSON.parse(savedState);
-
-      console.log('🔄 Parsed state:', {
-        ballCount: state.ballCount,
-        generation: state.generation,
-        drawMode: state.drawMode,
-        isRunning: state.isRunning,
-      });
-
-      // Check if state is recent (within 5 seconds - typical orientation change duration)
-      const age = Date.now() - state.timestamp;
-      console.log('🔄 State age:', age, 'ms');
-
-      if (age > 5000) {
-        console.log('ℹ️ Saved state too old (' + age + 'ms), ignoring');
-        sessionStorage.removeItem('padips_state');
-        return;
-      }
-
-      console.log('🔄 Restoring state from sessionStorage (age: ' + age + 'ms)');
-
-      // Restore balls with exact positions and velocities
-      console.log('🔄 Restoring', state.balls.length, 'balls...');
-      const restoredBalls = state.balls.map((ballData: any) => {
-        const ball = new Ball();
-        ball.position.set(ballData.position.x, ballData.position.y, ballData.position.z);
-        ball.velocity.set(ballData.velocity.x, ballData.velocity.y, ballData.velocity.z);
-        ball.radius = ballData.radius;
-        ball.color = ballData.color;
-        return ball;
-      });
-
-      // Replace ball array (readonly property workaround)
-      (this.ballSet as any).balls = restoredBalls;
-      (this.ballSet as any).num = state.ballCount;
-      (this.ballSet as any).generation = state.generation;
-
-      console.log('🔄 Balls restored, generation:', state.generation);
-
-      // Restore simulation state
-      this.isRunning = state.isRunning;
-      this.simulationState.calcFactor = state.calcFactor;
-      this.simulationState.collisionsEnabled = state.collisionsEnabled;
-      this.physicsEngine.setCollisionsEnabled(state.collisionsEnabled);
-
-      // Restore physics
-      this.global.acceleration.set(state.gravity.x, state.gravity.y, state.gravity.z);
-
-      // Restore rendering
-      this.sceneManager.setDrawMode(state.drawMode);
-      this.sceneManager.setStereoMode(state.stereoMode);
-      this.turnSpeed = state.turnSpeed;
-      if (state.turnSpeed > 0) {
-        this.sceneManager.setAutoRotation(true, state.turnSpeed);
-      }
-
-      console.log('🔄 Rendering state restored:', state.drawMode, state.stereoMode);
-
-      // Restore grid state
-      this.visualizationState.gridEnabled = state.gridEnabled;
-      this.visualizationState.gridSegments.set(
-        state.gridSegments.x,
-        state.gridSegments.y,
-        state.gridSegments.z
-      );
-      this.visualizationState.showWorldGrid = state.showWorldGrid;
-      this.visualizationState.showOccupiedVoxels = state.showOccupiedVoxels;
-      this.visualizationState.showCollisionChecks = state.showCollisionChecks;
-
-      // Recreate scene with restored balls
-      console.log('🔄 Recreating scene...');
-      this.sceneManager.updateBalls(this.ballSet);
-
-      // Update grid visualization if enabled
-      if (state.gridEnabled || state.showWorldGrid) {
-        this.sceneManager.setShowGrid(true);
-      }
-      if (state.showOccupiedVoxels) {
-        this.sceneManager.setShowOccupiedVoxels(true);
-      }
-      if (state.showCollisionChecks) {
-        this.sceneManager.setShowCollisionChecks(true);
-      }
-
-      // Resume animation if it was running
-      if (state.isRunning) {
-        console.log('🔄 Resuming animation...');
-        this.start();
-      }
-
-      console.log('✅ State restored successfully - ' + state.ballCount + ' balls, generation ' + state.generation);
-
-      // Send state update to UI
-      this.updateStats();
-
-    } catch (e) {
-      console.error('❌ Failed to restore state:', e);
-      sessionStorage.removeItem('padips_state');
-    }
-  }
-
-  /**
    * Debug: Dump scene state
    */
   debugScene(): void {
@@ -1860,12 +1654,6 @@ class PaDIPSApp {
     this.sceneManager.debugAnaglyph();
   }
 
-  /**
-   * Public method to save state (called from window events)
-   */
-  saveState(): void {
-    this.saveStateToStorage();
-  }
 
   /**
    * Send initialized signal to parent
@@ -1893,19 +1681,9 @@ const app = new PaDIPSApp(canvas);
 
 // Handle cleanup on page unload
 window.addEventListener('beforeunload', () => {
-  // Save state BEFORE unload (orientation change, navigation, etc.)
-  console.log('⚠️ beforeunload - saving state...');
-  app.saveState();
   app.dispose();
 });
 
-// Additional: Save state on visibility change (works better on mobile)
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) {
-    console.log('👁️ Page hidden - saving state...');
-    app.saveState();
-  }
-});
 
 // Export for debugging
 (window as any).padips = app;
