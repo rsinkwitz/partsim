@@ -357,6 +357,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
     }
   }, [showTapIndicators]);
 
+
   // Load web app files
   useEffect(() => {
     if (Platform.OS === "web") {
@@ -798,10 +799,12 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
 
 
   return (
-    <SafeAreaView style={styles.unifiedContainer} edges={[]}>
+    <View style={styles.unifiedContainer}>
       <StatusBar
+        hidden={Platform.OS !== 'web' && !isPortrait} // Verstecke in Landscape auf Mobile
+        translucent={true} // Erlaube Rendering unter der StatusBar
         barStyle={showMenu ? "light-content" : "dark-content"}
-        backgroundColor={showMenu ? "rgba(255,255,255,0.95)" : "#fff"}
+        backgroundColor="transparent"
       />
 
       {/* WebView Container - Platform/Orientation specific sizing */}
@@ -811,6 +814,8 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
         Platform.OS === 'web' && (stereoMode === 'topbottom' || stereoMode === 'sidebyside') && styles.webViewContainerWebStereo,
         Platform.OS !== 'web' && isPortrait && styles.webViewContainerPortrait,
         Platform.OS !== 'web' && !isPortrait && styles.webViewContainerLandscape,
+        // In Landscape (NICHT Stereo): WebView schmaler wenn Menu offen
+        Platform.OS !== 'web' && !isPortrait && showMenu && stereoMode === 'off' && styles.webViewContainerLandscapeWithMenu,
       ]}>
         <PersistentWebView
           webAppUri={webAppUri}
@@ -887,14 +892,18 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
         onReset={handleReset}
         isPortrait={isPortrait}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   unifiedContainer: {
-    flex: 1,
-    backgroundColor: '#fff', // Light mode
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#000', // Schwarz, damit kein weißer Streifen sichtbar ist
   },
 
   // WebView Container - Base (Vollbild, kein Platz für System-Icons)
@@ -930,6 +939,12 @@ const styles = StyleSheet.create({
   // Mobile Landscape: Vollbild
   webViewContainerLandscape: {
     // Nutzt base container (100% x 100%)
+  },
+
+  // Mobile Landscape mit geöffnetem Menu: WebView schmaler (rechts)
+  webViewContainerLandscapeWithMenu: {
+    width: '55%', // Menu nimmt 45% ein, WebView 55%
+    marginLeft: '45%', // Platz für Menu links
   },
 
   loadingContainer: {

@@ -7,7 +7,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#b0c4de"
+      "backgroundColor": "#546E7A"
     },
     "assetBundlePatterns": [
       "assets/**/*"
@@ -16,7 +16,12 @@
       "package": "com.rsinkwitz.padips",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#b0c4de"
+        "backgroundColor": "#546E7A"
+      },
+      "userInterfaceStyle": "dark",
+      "statusBar": {
+        "translucent": true,
+        "backgroundColor": "#00000000"
       }
     },
     "ios": {

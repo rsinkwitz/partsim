@@ -100,6 +100,35 @@ npm start
 
 ---
 
+## 🎨 Icon Generation
+
+The app uses a custom icon with a 3D wireframe cube and colorful balls.
+
+### Generate Icons
+
+```bash
+# Generate all icon sizes (requires librsvg)
+node generate-icon.js
+```
+
+**Generates:**
+- Android Mipmaps: `mipmap-{m,h,xh,xxh,xxxh}dpi/ic_launcher.png` (48-192px)
+- Expo Icons: `assets/{icon,adaptive-icon,favicon}.png`
+- Splash Screen: `assets/splash.png`
+
+**Requirements:**
+```bash
+# Install librsvg (better SVG rendering than ImageMagick)
+brew install librsvg
+```
+
+**Source:** `assets/icon-source.svg`
+- Blue-gray background (#546E7A)
+- Green wireframe cube (20px lines)
+- Three animated balls (red, blue, yellow)
+
+---
+
 ## 📦 Build Pipeline
 
 ```bash

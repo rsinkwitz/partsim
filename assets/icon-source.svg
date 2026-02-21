@@ -1,0 +1,43 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background - Blue-gray -->
+  <rect width="1024" height="1024" fill="#546E7A"/>
+
+  <!-- 3D Cube wireframe (isometric view) - thicker lines for visibility -->
+  <g stroke="#66FF66" stroke-width="20" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Back face -->
+    <rect x="146" y="137" width="572" height="572" />
+
+    <!-- Front face -->
+    <rect x="306" y="297" width="572" height="572" />
+
+    <!-- Connecting edges (depth) -->
+    <line x1="146" y1="137" x2="306" y2="297" />
+    <line x1="718" y1="137" x2="878" y2="297" />
+    <line x1="146" y1="709" x2="306" y2="869" />
+    <line x1="718" y1="709" x2="878" y2="869" />
+  </g>
+
+  <!-- Ball 1 - Red (top left) - 60% larger -->
+  <circle cx="450" cy="431" r="126" fill="#FF5252">
+    <animate attributeName="opacity" values="1;0.8;1" dur="2s" repeatCount="indefinite" />
+  </circle>
+  <ellipse cx="450" cy="399" rx="46" ry="34" fill="#FF8A80" opacity="0.6"/>
+
+  <!-- Ball 2 - Blue (bottom right) - 60% larger -->
+  <circle cx="680" cy="671" r="160" fill="#2196F3">
+    <animate attributeName="opacity" values="1;0.8;1" dur="2.5s" repeatCount="indefinite" />
+  </circle>
+  <ellipse cx="680" cy="630" rx="58" ry="46" fill="#64B5F6" opacity="0.6"/>
+
+  <!-- Ball 3 - Yellow (center, largest) - etwas kleiner -->
+  <circle cx="560" cy="571" r="155" fill="#FFC107">
+    <animate attributeName="opacity" values="1;0.8;1" dur="3s" repeatCount="indefinite" />
+  </circle>
+  <ellipse cx="560" cy="526" rx="55" ry="46" fill="#FFD54F" opacity="0.7"/>
+
+  <!-- Shadow effects for depth - 60% larger -->
+  <ellipse cx="560" cy="838" rx="184" ry="34" fill="#000000" opacity="0.2"/>
+  <ellipse cx="450" cy="793" rx="115" ry="22" fill="#000000" opacity="0.2"/>
+  <ellipse cx="680" cy="866" rx="149" ry="27" fill="#000000" opacity="0.2"/>
+</svg>
+

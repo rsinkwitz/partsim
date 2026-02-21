@@ -10,6 +10,7 @@
     "expo-file-system": "~19.0.11",
     "expo-gl": "~16.0.6",
     "expo-modules-core": "~3.0.15",
+    "expo-navigation-bar": "~5.0.10",
     "expo-three": "^2.2.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",

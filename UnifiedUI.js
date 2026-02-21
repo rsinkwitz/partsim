@@ -807,8 +807,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   menuContainer: {
-    width: Platform.OS === 'web' ? 320 : '80%',
-    maxWidth: 400,
+    width: Platform.OS === 'web' ? 280 : '70%',
+    maxWidth: 350,
     backgroundColor: 'rgba(255, 255, 255, 0.95)', // Light mode
     borderTopRightRadius: Platform.OS !== 'web' ? 12 : 0,
     borderBottomRightRadius: Platform.OS !== 'web' ? 12 : 0,
