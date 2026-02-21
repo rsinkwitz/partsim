@@ -734,8 +734,8 @@ export function UnifiedMenuOverlay({
 export function TapZones({ onTapLeft, onTapRight, showIndicators = false }) {
   const insets = useSafeAreaInsets();
 
-  // Calculate bottom position: base (40px) + safe area inset
-  const bottomPosition = Platform.OS !== 'web' ? 40 + insets.bottom : 40;
+  // Calculate bottom position: base (20px) + safe area inset
+  const bottomPosition = Platform.OS !== 'web' ? 20 + insets.bottom : 20;
 
   // TEST: Always show (ignore showIndicators parameter)
   const alwaysShow = true;
