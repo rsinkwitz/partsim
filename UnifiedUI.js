@@ -737,8 +737,10 @@ export function TapZones({ onTapLeft, onTapRight, showIndicators = false }) {
   // Calculate bottom position: base (20px) + safe area inset
   const bottomPosition = Platform.OS !== 'web' ? 20 + insets.bottom : 20;
 
-  // TEST: Always show (ignore showIndicators parameter)
-  const alwaysShow = true;
+  // Log when showIndicators changes
+  React.useEffect(() => {
+    console.log('👁️ TapZones: showIndicators =', showIndicators, 'bottomPosition =', bottomPosition);
+  }, [showIndicators]);
 
   return (
     <>
@@ -757,7 +759,7 @@ export function TapZones({ onTapLeft, onTapRight, showIndicators = false }) {
         onPress={onTapLeft}
         activeOpacity={0.7}
       >
-        {alwaysShow && (
+        {showIndicators && (
           <View style={styles.tapIndicator}>
             <Text style={styles.tapIndicatorText}>👆 Tap for menu</Text>
           </View>
@@ -779,7 +781,7 @@ export function TapZones({ onTapLeft, onTapRight, showIndicators = false }) {
         onPress={onTapRight}
         activeOpacity={0.7}
       >
-        {alwaysShow && (
+        {showIndicators && (
           <View style={styles.tapIndicator}>
             <Text style={styles.tapIndicatorText}>👆 Tap for menu</Text>
           </View>

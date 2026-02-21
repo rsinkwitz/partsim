@@ -122,7 +122,13 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
 
   // Unified UI state - Menu visibility and tap indicators
   const [showMenu, setShowMenu] = useState(false);
-  const [showTapIndicators, setShowTapIndicators] = useState(true);
+  const [showTapIndicators, setShowTapIndicators] = useState(false); // Start with false
+  const [webViewReady, setWebViewReady] = useState(false); // Track WebView readiness
+
+  // Log initial state
+  useEffect(() => {
+    console.log('🎬 App initialized: showTapIndicators = false (waiting for WebView)');
+  }, []);
 
   // Stats from WebView
   const [fps, setFps] = useState(0);
@@ -290,19 +296,26 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
   }, []);
 
   // Orientation detection (Mobile only)
+  const previousOrientationRef = useRef(null);
+
   useEffect(() => {
     if (Platform.OS !== "web") {
       const updateOrientation = () => {
         const { width, height } = require('react-native').Dimensions.get('window');
         const portrait = height > width;
-        const wasPortrait = isPortrait;
-        setIsPortrait(portrait);
-        console.log('📱 Orientation:', portrait ? 'Portrait' : 'Landscape');
+        const wasPortrait = previousOrientationRef.current;
+
+        console.log('📱 Orientation:', portrait ? 'Portrait' : 'Landscape', '(was:', wasPortrait === null ? 'initial' : (wasPortrait ? 'Portrait' : 'Landscape') + ')');
 
         // Show tap indicators for 3 seconds on orientation change (not on initial load)
-        if (wasPortrait !== portrait && wasPortrait !== undefined) {
+        if (wasPortrait !== null && wasPortrait !== portrait) {
+          console.log('🔄 Orientation changed, showing tap indicators');
           setShowTapIndicators(true);
         }
+
+        // Update refs and state
+        previousOrientationRef.current = portrait;
+        setIsPortrait(portrait);
       };
 
       // Initial check
@@ -322,10 +335,17 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
   // Fade tap indicators after 3 seconds (Web and Mobile)
   useEffect(() => {
     if (showTapIndicators) {
+      console.log('⏱️ TapIndicators: Shown, will hide after 3 seconds');
       const timer = setTimeout(() => {
+        console.log('⏱️ TapIndicators: 3 seconds elapsed, hiding now');
         setShowTapIndicators(false);
       }, 3000);
-      return () => clearTimeout(timer);
+      return () => {
+        console.log('⏱️ TapIndicators: Timer cleared');
+        clearTimeout(timer);
+      };
+    } else {
+      console.log('⏱️ TapIndicators: Hidden');
     }
   }, [showTapIndicators]);
 
@@ -535,6 +555,11 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
         }
         initializedRef.current = true;
 
+        // Mark WebView as ready and show tap indicators
+        setWebViewReady(true);
+        console.log('✅ WebView ready, showing tap indicators for 3 seconds');
+        setShowTapIndicators(true);
+
         console.log('📊 Current UI state:', {
           ballCount,
           actualBallCount,
@@ -563,7 +588,6 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           sendToWebView('setCollisionsEnabled', collisionsEnabled);
 
           // Grid - ALWAYS send grid state, even if disabled
-          console.log('🔧 Restoring grid state:', { gridEnabled, gridSegments, showWorldGrid, showOccupiedVoxels });
           if (gridEnabled) {
             sendToWebView('applyGrid', { segments: gridSegments });
             if (showWorldGrid) {
@@ -791,10 +815,12 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
       {/* Tap Zones (bottom corners) */}
       <TapZones
         onTapLeft={() => {
+          console.log('👆 Tap Left: Opening menu, hiding indicators');
           setShowMenu(true);
           setShowTapIndicators(false);
         }}
         onTapRight={() => {
+          console.log('👆 Tap Right: Opening menu, hiding indicators');
           setShowMenu(true);
           setShowTapIndicators(false);
         }}
