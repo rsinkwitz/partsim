@@ -810,7 +810,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
       {/* WebView Container - Platform/Orientation specific sizing */}
       <View style={[
         styles.webViewContainer,
-        Platform.OS === 'web' && styles.webViewContainerWeb,
+        Platform.OS === 'web' && stereoMode === 'off' && styles.webViewContainerWeb,
         Platform.OS === 'web' && (stereoMode === 'topbottom' || stereoMode === 'sidebyside') && styles.webViewContainerWebStereo,
         Platform.OS !== 'web' && isPortrait && styles.webViewContainerPortrait,
         Platform.OS !== 'web' && !isPortrait && styles.webViewContainerLandscape,
@@ -916,7 +916,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
 
-  // Web: 10% größer (110% = 1.1), zentriert
+  // Web: 10% größer (110% = 1.1), zentriert - NUR im normalen Modus (nicht Stereo)
   webViewContainerWeb: {
     width: '110%',
     height: '110%',
@@ -925,10 +925,13 @@ const styles = StyleSheet.create({
     transform: [{ translateX: '-50%' }, { translateY: '-50%' }],
   },
 
-  // Web Stereo (Top/Bottom oder Side-by-Side): Gleiche Größe, zentriert
+  // Web Stereo (Top/Bottom oder Side-by-Side): Standard-Größe (100%), kein Offset
   webViewContainerWebStereo: {
-    width: '110%',
-    height: '110%',
+    width: '100%',
+    height: '100%',
+    top: 0,
+    left: 0,
+    transform: [], // Kein transform needed
   },
 
   // Mobile Portrait: Vollbild (keine aspectRatio mehr)
