@@ -110,6 +110,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
   // Start with 0.01 instead of 0 to work around React Native Web Slider rendering bug
   const [cubeDepth, setCubeDepth] = useState(0.01);
   const [turnSpeed, setTurnSpeed] = useState(0); // Auto-rotation speed: 0=off, 1-4=speed multiplier
+  const [isDarkMode, setIsDarkMode] = useState(false); // Dark mode for UI
 
   // WebView loaded state for initial cube depth fix
   const [webViewLoaded, setWebViewLoaded] = useState(false);
@@ -225,6 +226,12 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
                 return data.turnSpeed;
               });
             }
+          } else if (data.type === 'darkModeChanged') {
+            // Update dark mode (e.g., via keyboard shortcut [D])
+            if (data.isDarkMode !== undefined) {
+              console.log('🌓 UI: Dark mode updated to:', data.isDarkMode ? 'ON' : 'OFF');
+              setIsDarkMode(data.isDarkMode);
+            }
           } else if (data.type === 'resetRequest') {
             // Reset requested from WebView (e.g., via keyboard shortcut [R])
             console.log('🔄 Reset requested from WebView');
@@ -283,7 +290,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           }), '*');
 
           // Prevent default for known shortcuts (updated list)
-          const shortcuts = ['s', 'a', 'y', '3', 't', 'w', 'p', 'g', 'F1'];
+          const shortcuts = ['s', 'a', 'r', 'y', '3', 'd', 't', 'w', 'p', 'g', 'x', 'F1'];
           if (shortcuts.includes(event.key) ||
               event.key === '+' || event.key === '-' ||
               event.key === 'j' || event.key === 'k' ||
@@ -895,6 +902,8 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
         setCollisionsEnabled={setCollisionsEnabled}
         wireframeSegments={wireframeSegments}
         setWireframeSegments={setWireframeSegments}
+        isDarkMode={isDarkMode}
+        setIsDarkMode={setIsDarkMode}
         sendToWebView={sendMessage}
         onTogglePlayPause={handleTogglePlayPause}
         onReset={handleReset}

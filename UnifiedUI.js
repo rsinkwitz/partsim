@@ -48,16 +48,17 @@ function TooltipButton({ title, onPress, children, style, textStyle }) {
 /**
  * Stats Panel - 2x2 Grid
  */
-function StatsPanel({ fps, ballCount, generation, checks }) {
+function StatsPanel({ fps, ballCount, generation, checks, isDarkMode = false }) {
+  const textColor = isDarkMode ? '#e0e0e0' : '#333';
   return (
     <View style={styles.statsContainer}>
       <View style={styles.statsRow}>
-        <Text style={styles.statText}>FPS: {fps}</Text>
-        <Text style={styles.statText}>Balls: {ballCount}</Text>
+        <Text style={[styles.statText, { color: textColor }]}>FPS: {fps}</Text>
+        <Text style={[styles.statText, { color: textColor }]}>Balls: {ballCount}</Text>
       </View>
       <View style={styles.statsRow}>
-        <Text style={styles.statText}>Gen: {generation}</Text>
-        <Text style={styles.statText}>Checks: {checks}</Text>
+        <Text style={[styles.statText, { color: textColor }]}>Gen: {generation}</Text>
+        <Text style={[styles.statText, { color: textColor }]}>Checks: {checks}</Text>
       </View>
     </View>
   );
@@ -114,9 +115,14 @@ function CompactToggles({
   isPortrait,
   gravityMagnitude,
   gridSegments,
+  isDarkMode = false,
 }) {
   const { width } = Dimensions.get('window');
   const useWideLayout = width > 400; // 3x2 if enough width
+  const textColor = isDarkMode ? '#e0e0e0' : '#333';
+  const bgColor = isDarkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)';
+
+  // ...existing toggle handlers...
 
   // Stereo Toggle Handler - Platform-specific
   const handleStereoToggle = (enabled) => {
@@ -177,11 +183,11 @@ function CompactToggles({
   ];
 
   return (
-    <View style={styles.compactToggles}>
+    <View style={[styles.compactToggles, { backgroundColor: bgColor }]}>
       <View style={useWideLayout ? styles.toggleGrid3x2 : styles.toggleGrid2x3}>
         {toggles.map((toggle, index) => (
           <View key={index} style={styles.toggleItem}>
-            <Text style={styles.toggleLabel}>{toggle.icon} {toggle.label}</Text>
+            <Text style={[styles.toggleLabel, { color: textColor }]}>{toggle.icon} {toggle.label}</Text>
             <Switch
               value={toggle.value}
               onValueChange={toggle.onChange}
@@ -195,10 +201,14 @@ function CompactToggles({
   );
 }
 
+
 /**
  * Ball Count Controls - ±50 buttons
  */
-function BallCountControls({ ballCount, setBallCount, sendToWebView }) {
+function BallCountControls({ ballCount, setBallCount, sendToWebView, isDarkMode = false }) {
+  const textColor = isDarkMode ? '#e0e0e0' : '#333';
+  const bgColor = isDarkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)';
+
   const handleMinus = () => {
     const newCount = Math.max(5, ballCount - 50);
     setBallCount(newCount);
@@ -214,8 +224,8 @@ function BallCountControls({ ballCount, setBallCount, sendToWebView }) {
   };
 
   return (
-    <View style={styles.ballCountControls}>
-      <Text style={styles.ballCountLabel}>🎱 Balls: {ballCount}</Text>
+    <View style={[styles.ballCountControls, { backgroundColor: bgColor }]}>
+      <Text style={[styles.ballCountLabel, { color: textColor }]}>🎱 Balls: {ballCount}</Text>
       <View style={styles.ballCountButtons}>
         <TouchableOpacity style={styles.ballCountButton} onPress={handleMinus}>
           <Text style={styles.ballCountButtonText}>-50</Text>
@@ -231,7 +241,9 @@ function BallCountControls({ ballCount, setBallCount, sendToWebView }) {
 /**
  * Turn Speed Slider
  */
-function TurnSpeedSlider({ turnSpeed, setTurnSpeed, sendToWebView }) {
+function TurnSpeedSlider({ turnSpeed, setTurnSpeed, sendToWebView, isDarkMode = false }) {
+  const textColor = isDarkMode ? '#e0e0e0' : '#333';
+
   const handleChange = (val) => {
     setTurnSpeed(val);
     if (val === 0) {
@@ -243,7 +255,7 @@ function TurnSpeedSlider({ turnSpeed, setTurnSpeed, sendToWebView }) {
 
   return (
     <View style={styles.sliderContainer}>
-      <Text style={styles.sliderLabel}>🔄 Turn: {turnSpeed === 0 ? 'OFF' : `${turnSpeed}x`}</Text>
+      <Text style={[styles.sliderLabel, { color: textColor }]}>🔄 Turn: {turnSpeed === 0 ? 'OFF' : `${turnSpeed}x`}</Text>
       <Slider
         style={styles.slider}
         minimumValue={0}
@@ -262,16 +274,18 @@ function TurnSpeedSlider({ turnSpeed, setTurnSpeed, sendToWebView }) {
 /**
  * Collapsible Section
  */
-function CollapsibleSection({ title, defaultOpen = false, children }) {
+function CollapsibleSection({ title, defaultOpen = false, children, isDarkMode = false }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
+  const textColor = isDarkMode ? '#e0e0e0' : '#333';
+  const borderColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
 
   return (
-    <View style={styles.section}>
+    <View style={[styles.section, { borderTopColor: borderColor }]}>
       <TouchableOpacity
         style={styles.sectionHeader}
         onPress={() => setIsOpen(!isOpen)}
       >
-        <Text style={styles.sectionTitle}>{isOpen ? '▼' : '▶'} {title}</Text>
+        <Text style={[styles.sectionTitle, { color: textColor }]}>{isOpen ? '▼' : '▶'} {title}</Text>
       </TouchableOpacity>
       {isOpen && (
         <View style={styles.sectionContent}>
@@ -343,6 +357,10 @@ export function UnifiedMenuOverlay({
   wireframeSegments,
   setWireframeSegments,
 
+  // Dark Mode
+  isDarkMode,
+  setIsDarkMode,
+
   // Callbacks
   sendToWebView,
   onTogglePlayPause,
@@ -377,11 +395,37 @@ export function UnifiedMenuOverlay({
   // Web Stereo-Mode: Nur obere Hälfte nutzen
   const isWebStereo = Platform.OS === 'web' && (stereoMode === 'topbottom' || stereoMode === 'sidebyside');
 
+  // Dynamic styles based on dark mode
+  const dynamicStyles = {
+    menuContainer: {
+      backgroundColor: isDarkMode ? 'rgba(30, 30, 30, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+    },
+    text: {
+      color: isDarkMode ? '#e0e0e0' : '#333',
+    },
+    sectionTitle: {
+      color: isDarkMode ? '#e0e0e0' : '#333',
+    },
+    sectionBackground: {
+      backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+    },
+    divider: {
+      backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+    },
+    border: {
+      borderTopColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+    },
+    footerText: {
+      color: isDarkMode ? '#999' : '#666',
+    },
+  };
+
   return (
     <View style={styles.overlay}>
       <SafeAreaView
         style={[
           styles.menuContainer,
+          dynamicStyles.menuContainer,
           isWebStereo && styles.menuContainerWebStereo
         ]}
         edges={Platform.OS === 'web' ? [] : (isPortrait ? ['top', 'left'] : ['left', 'top'])}
@@ -390,7 +434,7 @@ export function UnifiedMenuOverlay({
           {/* KOPF-BEREICH: Stats + Close Button */}
           <View style={styles.headerRow}>
             <View style={styles.statsWrapper}>
-              <StatsPanel fps={fps} ballCount={ballCount} generation={generation} checks={checks} />
+              <StatsPanel fps={fps} ballCount={ballCount} generation={generation} checks={checks} isDarkMode={isDarkMode} />
             </View>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
               <Text style={styles.closeButtonText}>✖</Text>
@@ -439,27 +483,30 @@ export function UnifiedMenuOverlay({
             isPortrait={isPortrait}
             gravityMagnitude={gravityMagnitude}
             gridSegments={gridSegments}
+            isDarkMode={isDarkMode}
           />
 
           <BallCountControls
             ballCount={ballCount}
             setBallCount={() => {}} // Set via ±50 buttons only
             sendToWebView={sendToWebView}
+            isDarkMode={isDarkMode}
           />
 
           <TurnSpeedSlider
             turnSpeed={turnSpeed}
             setTurnSpeed={setTurnSpeed}
             sendToWebView={sendToWebView}
+            isDarkMode={isDarkMode}
           />
 
           {/* KOLLABIERBARE SECTIONS */}
 
-          <CollapsibleSection title="📦 Model" defaultOpen={false}>
+          <CollapsibleSection title="📦 Model" defaultOpen={false} isDarkMode={isDarkMode}>
             {/* Balls */}
             <View style={styles.sliderContainer}>
-              <Text style={styles.label}>Number of Balls: {ballCount}</Text>
-              <Text style={styles.smallText}>Use ±50 buttons above or slider below</Text>
+              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Number of Balls: {ballCount}</Text>
+              <Text style={[styles.smallText, { color: dynamicStyles.footerText.color }]}>Use ±50 buttons above or slider below</Text>
               <Slider
                 style={styles.slider}
                 minimumValue={5}
@@ -474,7 +521,7 @@ export function UnifiedMenuOverlay({
             </View>
 
             <View style={styles.sliderContainer}>
-              <Text style={styles.label}>Min Radius: {minRadius} cm</Text>
+              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Min Radius: {minRadius} cm</Text>
               <Slider
                 style={styles.slider}
                 minimumValue={2}
@@ -488,7 +535,7 @@ export function UnifiedMenuOverlay({
             </View>
 
             <View style={styles.sliderContainer}>
-              <Text style={styles.label}>Max Radius: {maxRadius} cm</Text>
+              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Max Radius: {maxRadius} cm</Text>
               <Slider
                 style={styles.slider}
                 minimumValue={2}
@@ -504,7 +551,7 @@ export function UnifiedMenuOverlay({
             {Platform.OS === 'web' && (
               <>
                 <View style={styles.sliderContainer}>
-                  <Text style={styles.label}>Max Velocity: {maxVelocity.toFixed(1)} m/s</Text>
+                  <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Max Velocity: {maxVelocity.toFixed(1)} m/s</Text>
                   <Slider
                     style={styles.slider}
                     minimumValue={0.5}
@@ -518,7 +565,7 @@ export function UnifiedMenuOverlay({
                 </View>
 
                 <View style={styles.sliderContainer}>
-                  <Text style={styles.label}>Elasticity: {(elasticity / 100).toFixed(2)}</Text>
+                  <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Elasticity: {(elasticity / 100).toFixed(2)}</Text>
                   <Slider
                     style={styles.slider}
                     minimumValue={0}
@@ -538,11 +585,11 @@ export function UnifiedMenuOverlay({
             </TouchableOpacity>
 
             {/* Physics */}
-            <View style={styles.divider} />
+            <View style={[styles.divider, dynamicStyles.divider]} />
             <Text style={styles.subsectionTitle}>Physics</Text>
 
             <View style={styles.toggleContainer}>
-              <Text style={styles.label}>Collisions Enabled</Text>
+              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Collisions Enabled</Text>
               <Switch
                 value={collisionsEnabled}
                 onValueChange={(val) => {
@@ -555,23 +602,36 @@ export function UnifiedMenuOverlay({
 
             {/* Gravity - matches Quick Toggle */}
             <View style={styles.toggleContainer}>
-              <Text style={styles.label}>Gravity (matches toggle above)</Text>
-              <Text style={styles.smallText}>Currently: {gravityPreset}</Text>
+              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Gravity (matches toggle above)</Text>
+              <Text style={[styles.smallText, { color: dynamicStyles.footerText.color }]}>Currently: {gravityPreset}</Text>
             </View>
           </CollapsibleSection>
 
-          <CollapsibleSection title="👁️ View" defaultOpen={false}>
+          <CollapsibleSection title="👁️ View" defaultOpen={false} isDarkMode={isDarkMode}>
             {/* Rendering */}
             <Text style={styles.subsectionTitle}>Rendering</Text>
 
+            {/* Dark Mode Toggle */}
+            <View style={styles.toggleContainer}>
+              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>🌓 Dark Mode (UI)</Text>
+              <Switch
+                value={isDarkMode}
+                onValueChange={(val) => {
+                  setIsDarkMode(val);
+                  sendToWebView('setDarkMode', val);
+                }}
+                trackColor={{ false: '#ddd', true: '#4CAF50' }}
+              />
+            </View>
+
             {/* Draw Mode - matches Silver Toggle */}
             <View style={styles.pickerContainer}>
-              <Text style={styles.label}>Draw Mode (Silver toggle sets LIGHTED/SILVER)</Text>
-              <Text style={styles.smallText}>Currently: {drawMode}</Text>
+              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Draw Mode (Silver toggle sets LIGHTED/SILVER)</Text>
+              <Text style={[styles.smallText, { color: dynamicStyles.footerText.color }]}>Currently: {drawMode}</Text>
             </View>
 
             <View style={styles.sliderContainer}>
-              <Text style={styles.label}>Wireframe Segments: {wireframeSegments}</Text>
+              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Wireframe Segments: {wireframeSegments}</Text>
               <Slider
                 style={styles.slider}
                 minimumValue={4}
@@ -588,18 +648,18 @@ export function UnifiedMenuOverlay({
             </View>
 
             {/* Stereo */}
-            <View style={styles.divider} />
+            <View style={[styles.divider, dynamicStyles.divider]} />
             <Text style={styles.subsectionTitle}>3D Stereo</Text>
 
             <View style={styles.toggleContainer}>
-              <Text style={styles.label}>Stereo Mode (toggle controls this)</Text>
-              <Text style={styles.smallText}>Currently: {stereoMode}</Text>
+              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Stereo Mode (toggle controls this)</Text>
+              <Text style={[styles.smallText, { color: dynamicStyles.footerText.color }]}>Currently: {stereoMode}</Text>
             </View>
 
             {stereoMode !== 'off' && (
               <>
                 <View style={styles.sliderContainer}>
-                  <Text style={styles.label}>Eye Separation: {eyeSeparation.toFixed(1)} cm</Text>
+                  <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Eye Separation: {eyeSeparation.toFixed(1)} cm</Text>
                   <Slider
                     style={styles.slider}
                     minimumValue={5}
@@ -616,7 +676,7 @@ export function UnifiedMenuOverlay({
                 </View>
 
                 <View style={styles.sliderContainer}>
-                  <Text style={styles.label}>Cube Depth: {cubeDepth.toFixed(1)} m</Text>
+                  <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Cube Depth: {cubeDepth.toFixed(1)} m</Text>
                   <Slider
                     style={styles.slider}
                     minimumValue={-2}
@@ -635,12 +695,12 @@ export function UnifiedMenuOverlay({
             )}
           </CollapsibleSection>
 
-          <CollapsibleSection title="⚙️ Simulation & System" defaultOpen={false}>
+          <CollapsibleSection title="⚙️ Simulation & System" defaultOpen={false} isDarkMode={isDarkMode}>
             {/* Simulation */}
             <Text style={styles.subsectionTitle}>Simulation</Text>
 
             <View style={styles.sliderContainer}>
-              <Text style={styles.label}>Calc Factor: {calcFactor}</Text>
+              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Calc Factor: {calcFactor}</Text>
               <Slider
                 style={styles.slider}
                 minimumValue={1}
@@ -657,23 +717,23 @@ export function UnifiedMenuOverlay({
             </View>
 
             <View style={styles.toggleContainer}>
-              <Text style={styles.label}>Show Collision Checks (matches toggle)</Text>
-              <Text style={styles.smallText}>Currently: {showCollisionChecks ? 'ON' : 'OFF'}</Text>
+              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Show Collision Checks (matches toggle)</Text>
+              <Text style={[styles.smallText, { color: dynamicStyles.footerText.color }]}>Currently: {showCollisionChecks ? 'ON' : 'OFF'}</Text>
             </View>
 
             {/* Grid System */}
-            <View style={styles.divider} />
+            <View style={[styles.divider, dynamicStyles.divider]} />
             <Text style={styles.subsectionTitle}>Grid System</Text>
 
             <View style={styles.toggleContainer}>
-              <Text style={styles.label}>Grid-based Collision (matches toggle)</Text>
-              <Text style={styles.smallText}>Currently: {gridEnabled ? 'ON' : 'OFF'}</Text>
+              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Grid-based Collision (matches toggle)</Text>
+              <Text style={[styles.smallText, { color: dynamicStyles.footerText.color }]}>Currently: {gridEnabled ? 'ON' : 'OFF'}</Text>
             </View>
 
             {gridEnabled && (
               <>
                 <View style={styles.sliderContainer}>
-                  <Text style={styles.label}>Grid Segments: {gridSegments}</Text>
+                  <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Grid Segments: {gridSegments}</Text>
                   <Slider
                     style={styles.slider}
                     minimumValue={2}
@@ -690,7 +750,7 @@ export function UnifiedMenuOverlay({
                 </View>
 
                 <View style={styles.toggleContainer}>
-                  <Text style={styles.label}>Show World Grid</Text>
+                  <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Show World Grid</Text>
                   <Switch
                     value={showWorldGrid}
                     onValueChange={(val) => {
@@ -702,8 +762,8 @@ export function UnifiedMenuOverlay({
                 </View>
 
                 <View style={styles.toggleContainer}>
-                  <Text style={styles.label}>Show Occupied Voxels (matches toggle)</Text>
-                  <Text style={styles.smallText}>Currently: {showOccupiedVoxels ? 'ON' : 'OFF'}</Text>
+                  <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Show Occupied Voxels (matches toggle)</Text>
+                  <Text style={[styles.smallText, { color: dynamicStyles.footerText.color }]}>Currently: {showOccupiedVoxels ? 'ON' : 'OFF'}</Text>
                 </View>
               </>
             )}
@@ -711,22 +771,16 @@ export function UnifiedMenuOverlay({
 
           {/* Footer */}
           {Platform.OS === 'web' && (
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>[F1] for help • [M] or [F10] for menu</Text>
+            <View style={[styles.footer, dynamicStyles.border]}>
+              <Text style={[styles.footerText, { color: dynamicStyles.footerText.color }]}>[F1] for help • [M] or [F10] for menu</Text>
             </View>
           )}
         </ScrollView>
       </SafeAreaView>
-
-      {/* Tap to close overlay (right side or outside menu) */}
-      <TouchableOpacity
-        style={styles.overlayBackground}
-        onPress={onClose}
-        activeOpacity={1}
-      />
     </View>
   );
 }
+
 
 /**
  * Tap Zones (bottom corners)

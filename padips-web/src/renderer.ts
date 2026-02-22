@@ -60,6 +60,7 @@ class PaDIPSApp {
 
   // UI state
   private ballParams: BallGenerationParams = { ...DEFAULT_BALL_PARAMS };
+  private isDarkMode: boolean = false; // Dark mode for F1 help UI
 
   constructor(canvas: HTMLCanvasElement) {
     // Initialize core objects
@@ -360,6 +361,18 @@ class PaDIPSApp {
           case 'setDrawMode':
             this.updateDrawMode(data.params as DrawMode);
             console.log('🎨 Draw mode set to:', data.params);
+            break;
+          case 'setDarkMode':
+            this.isDarkMode = data.params;
+            const helpDiv = document.getElementById('keyHelp');
+            if (helpDiv) {
+              if (this.isDarkMode) {
+                helpDiv.classList.add('dark');
+              } else {
+                helpDiv.classList.remove('dark');
+              }
+            }
+            console.log('🌓 Dark mode:', this.isDarkMode ? 'ON' : 'OFF', '(from UI toggle)');
             break;
           case 'setWireframeSegments':
             this.sceneManager.setWireframeSegments(data.params);
@@ -923,6 +936,12 @@ class PaDIPSApp {
           console.log('⌨️ [X] Coordinate axes toggled');
           break;
 
+        case 'd':
+          // Toggle dark mode
+          this.toggleDarkMode();
+          console.log('⌨️ [D] Dark mode toggled');
+          break;
+
         case 'f1':
           // Toggle key help
           e.preventDefault();
@@ -1267,6 +1286,29 @@ class PaDIPSApp {
   }
 
   /**
+   * Toggle dark mode for F1 help UI and send to parent (React Native)
+   */
+  private toggleDarkMode(): void {
+    this.isDarkMode = !this.isDarkMode;
+    const helpDiv = document.getElementById('keyHelp');
+    if (helpDiv) {
+      if (this.isDarkMode) {
+        helpDiv.classList.add('dark');
+      } else {
+        helpDiv.classList.remove('dark');
+      }
+    }
+
+    // Send dark mode state to parent (React Native UI)
+    this.sendMessageToParent({
+      type: 'darkModeChanged',
+      isDarkMode: this.isDarkMode
+    });
+
+    console.log('🌓 Dark mode:', this.isDarkMode ? 'ON' : 'OFF', '(sent to UI)');
+  }
+
+  /**
    * Send state updates to parent (React Native/iframe parent)
    */
   private sendStateToParent(): void {
@@ -1314,6 +1356,21 @@ class PaDIPSApp {
     this.lastSentState.drawMode = state.drawMode;
     this.lastSentState.gravityPreset = gravityPreset;
     this.lastSentState.turnSpeed = this.turnSpeed;
+  }
+
+  /**
+   * Send custom message to parent (React Native/iframe parent)
+   */
+  private sendMessageToParent(message: any): void {
+    // For iframe (Web)
+    if (window.parent !== window) {
+      window.parent.postMessage(JSON.stringify(message), '*');
+    }
+
+    // For React Native WebView
+    if ((window as any).ReactNativeWebView) {
+      (window as any).ReactNativeWebView.postMessage(JSON.stringify(message));
+    }
   }
 
   /**
