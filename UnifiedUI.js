@@ -3,13 +3,14 @@
  * Fullscreen WebView with Tap-to-Menu overlay
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
   Switch, Platform, Dimensions
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
+import { crossUpdate, createSyncFunction } from './src/utils/CrossUpdate';
 
 /**
  * Button with Tooltip (Web only)
@@ -95,6 +96,7 @@ function MainControls({ isRunning, onTogglePlayPause, onReset, onClose }) {
 /**
  * Compact Toggles - 2x3 or 3x2 responsive layout
  * Quick access for most-used settings
+ * Synced with detailed controls using CrossUpdate
  */
 function CompactToggles({
   // States
@@ -122,49 +124,28 @@ function CompactToggles({
   const textColor = isDarkMode ? '#e0e0e0' : '#333';
   const bgColor = isDarkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)';
 
-  // ...existing toggle handlers...
+  // Toggle handlers now use crossUpdate.notify for bi-directional sync
+
+  // Toggle handlers now use crossUpdate.notify for bi-directional sync
 
   // Stereo Toggle Handler - Platform-specific
   const handleStereoToggle = (enabled) => {
-    if (!enabled) {
-      setStereoMode('off');
-      sendToWebView('setStereoMode', 'off');
-    } else {
-      let mode;
-      if (Platform.OS === 'web') {
-        mode = 'topbottom';
-      } else if (isPortrait) {
-        mode = 'anaglyph';
-      } else {
-        mode = 'sidebyside'; // Landscape mobile
-      }
-      setStereoMode(mode);
-      sendToWebView('setStereoMode', mode);
-    }
+    crossUpdate.notify('toggle-stereo', enabled);
   };
 
   // Silver Toggle (LIGHTED ↔ SILVER)
   const handleSilverToggle = (enabled) => {
-    const mode = enabled ? 'SILVER' : 'LIGHTED';
-    setDrawMode(mode);
-    sendToWebView('setDrawMode', mode);
+    crossUpdate.notify('toggle-silver', enabled);
   };
 
   // Gravity Toggle (ZERO ↔ DOWN)
   const handleGravityToggle = (enabled) => {
-    const preset = enabled ? 'DOWN' : 'ZERO';
-    setGravityPreset(preset);
-    sendToWebView('setGravityPreset', { preset, magnitude: gravityMagnitude });
+    crossUpdate.notify('toggle-gravity', enabled);
   };
 
   // Grid Toggle
   const handleGridToggle = (enabled) => {
-    setGridEnabled(enabled);
-    if (enabled) {
-      sendToWebView('applyGrid', { segments: gridSegments });
-    } else {
-      sendToWebView('disableGrid');
-    }
+    crossUpdate.notify('toggle-grid', enabled);
   };
 
   const toggles = [
@@ -172,12 +153,10 @@ function CompactToggles({
     { icon: '🌍', label: 'Gravity', value: gravityPreset === 'DOWN', onChange: handleGravityToggle },
     { icon: '🔲', label: 'Grid', value: gridEnabled, onChange: handleGridToggle },
     { icon: '🔍', label: 'Checks', value: showCollisionChecks, onChange: (val) => {
-      setShowCollisionChecks(val);
-      sendToWebView('setShowCollisionChecks', val);
+      crossUpdate.notify('toggle-checks', val);
     }},
     { icon: '📦', label: 'Voxels', value: showOccupiedVoxels, onChange: (val) => {
-      setShowOccupiedVoxels(val);
-      sendToWebView('setShowOccupiedVoxels', val);
+      crossUpdate.notify('toggle-voxels', val);
     }},
     { icon: '🕶️', label: 'Stereo', value: stereoMode !== 'off', onChange: handleStereoToggle },
   ];
@@ -369,6 +348,104 @@ export function UnifiedMenuOverlay({
   // Platform info
   isPortrait,
 }) {
+  // Setup CrossUpdate synchronization for compact toggles ↔ detailed controls
+  const syncInitialized = useRef(false);
+
+  useEffect(() => {
+    if (!syncInitialized.current) {
+      syncInitialized.current = true;
+
+      // Create state updater function
+      const updateState = (controlId, value) => {
+        switch (controlId) {
+          case 'toggle-silver':
+          case 'detail-drawmode':
+            const mode = value ? 'SILVER' : 'LIGHTED';
+            setDrawMode(mode);
+            sendToWebView('setDrawMode', mode);
+            break;
+
+          case 'toggle-gravity':
+          case 'detail-gravity':
+            const preset = value ? 'DOWN' : 'ZERO';
+            setGravityPreset(preset);
+            sendToWebView('setGravityPreset', { preset, magnitude: gravityMagnitude });
+            break;
+
+          case 'toggle-grid':
+          case 'detail-grid':
+            setGridEnabled(value);
+            if (value) {
+              sendToWebView('applyGrid', { segments: gridSegments });
+            } else {
+              sendToWebView('disableGrid');
+            }
+            break;
+
+          case 'toggle-checks':
+          case 'detail-checks':
+            setShowCollisionChecks(value);
+            sendToWebView('setShowCollisionChecks', value);
+            break;
+
+          case 'toggle-voxels':
+          case 'detail-voxels':
+            setShowOccupiedVoxels(value);
+            sendToWebView('setShowOccupiedVoxels', value);
+            break;
+
+          case 'toggle-stereo':
+          case 'detail-stereo':
+            if (!value) {
+              setStereoMode('off');
+              sendToWebView('setStereoMode', 'off');
+            } else {
+              let mode;
+              if (Platform.OS === 'web') {
+                mode = 'topbottom';
+              } else if (isPortrait) {
+                mode = 'anaglyph';
+              } else {
+                mode = 'sidebyside';
+              }
+              setStereoMode(mode);
+              sendToWebView('setStereoMode', mode);
+            }
+            break;
+        }
+      };
+
+      const syncFunc = createSyncFunction(updateState);
+
+      // Bi-directional sync: Compact Toggle ↔ Detail Control
+      crossUpdate.watch('toggle-silver', 'detail-drawmode', syncFunc);
+      crossUpdate.watch('detail-drawmode', 'toggle-silver', syncFunc);
+
+      crossUpdate.watch('toggle-gravity', 'detail-gravity', syncFunc);
+      crossUpdate.watch('detail-gravity', 'toggle-gravity', syncFunc);
+
+      crossUpdate.watch('toggle-grid', 'detail-grid', syncFunc);
+      crossUpdate.watch('detail-grid', 'toggle-grid', syncFunc);
+
+      crossUpdate.watch('toggle-checks', 'detail-checks', syncFunc);
+      crossUpdate.watch('detail-checks', 'toggle-checks', syncFunc);
+
+      crossUpdate.watch('toggle-voxels', 'detail-voxels', syncFunc);
+      crossUpdate.watch('detail-voxels', 'toggle-voxels', syncFunc);
+
+      crossUpdate.watch('toggle-stereo', 'detail-stereo', syncFunc);
+      crossUpdate.watch('detail-stereo', 'toggle-stereo', syncFunc);
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (syncInitialized.current) {
+        crossUpdate.clear();
+        syncInitialized.current = false;
+      }
+    };
+  }, [gravityMagnitude, gridSegments, isPortrait]); // Re-setup if these dependencies change
+
   if (!visible) return null;
 
   const handleApply = () => {
@@ -600,10 +677,18 @@ export function UnifiedMenuOverlay({
               />
             </View>
 
-            {/* Gravity - matches Quick Toggle */}
+            {/* Gravity - Synced with Quick Toggle */}
             <View style={styles.toggleContainer}>
-              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Gravity (matches toggle above)</Text>
-              <Text style={[styles.smallText, { color: dynamicStyles.footerText.color }]}>Currently: {gravityPreset}</Text>
+              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>🌍 Gravity</Text>
+              <View style={styles.toggleRow}>
+                <Text style={[styles.smallText, { color: dynamicStyles.footerText.color }]}>{gravityPreset === 'DOWN' ? 'Down' : 'Zero'}</Text>
+                <Switch
+                  value={gravityPreset === 'DOWN'}
+                  onValueChange={(val) => crossUpdate.notify('detail-gravity', val)}
+                  trackColor={{ false: '#ccc', true: '#4CAF50' }}
+                  thumbColor={gravityPreset === 'DOWN' ? '#fff' : '#f4f3f4'}
+                />
+              </View>
             </View>
           </CollapsibleSection>
 
@@ -624,10 +709,18 @@ export function UnifiedMenuOverlay({
               />
             </View>
 
-            {/* Draw Mode - matches Silver Toggle */}
-            <View style={styles.pickerContainer}>
-              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Draw Mode (Silver toggle sets LIGHTED/SILVER)</Text>
-              <Text style={[styles.smallText, { color: dynamicStyles.footerText.color }]}>Currently: {drawMode}</Text>
+            {/* Draw Mode - Synced with Silver Toggle */}
+            <View style={styles.toggleContainer}>
+              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>✨ Silver Material</Text>
+              <View style={styles.toggleRow}>
+                <Text style={[styles.smallText, { color: dynamicStyles.footerText.color }]}>{drawMode === 'SILVER' ? 'Silver' : 'Lighted'}</Text>
+                <Switch
+                  value={drawMode === 'SILVER'}
+                  onValueChange={(val) => crossUpdate.notify('detail-drawmode', val)}
+                  trackColor={{ false: '#ccc', true: '#4CAF50' }}
+                  thumbColor={drawMode === 'SILVER' ? '#fff' : '#f4f3f4'}
+                />
+              </View>
             </View>
 
             <View style={styles.sliderContainer}>
@@ -651,9 +744,20 @@ export function UnifiedMenuOverlay({
             <View style={[styles.divider, dynamicStyles.divider]} />
             <Text style={styles.subsectionTitle}>3D Stereo</Text>
 
+            {/* Stereo - Synced with Quick Toggle */}
             <View style={styles.toggleContainer}>
-              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Stereo Mode (toggle controls this)</Text>
-              <Text style={[styles.smallText, { color: dynamicStyles.footerText.color }]}>Currently: {stereoMode}</Text>
+              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>🕶️ Stereo Mode</Text>
+              <View style={styles.toggleRow}>
+                <Text style={[styles.smallText, { color: dynamicStyles.footerText.color }]}>
+                  {stereoMode === 'off' ? 'Off' : stereoMode}
+                </Text>
+                <Switch
+                  value={stereoMode !== 'off'}
+                  onValueChange={(val) => crossUpdate.notify('detail-stereo', val)}
+                  trackColor={{ false: '#ccc', true: '#4CAF50' }}
+                  thumbColor={stereoMode !== 'off' ? '#fff' : '#f4f3f4'}
+                />
+              </View>
             </View>
 
             {stereoMode !== 'off' && (
@@ -716,18 +820,30 @@ export function UnifiedMenuOverlay({
               />
             </View>
 
+            {/* Collision Checks - Synced with Quick Toggle */}
             <View style={styles.toggleContainer}>
-              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Show Collision Checks (matches toggle)</Text>
-              <Text style={[styles.smallText, { color: dynamicStyles.footerText.color }]}>Currently: {showCollisionChecks ? 'ON' : 'OFF'}</Text>
+              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>🔍 Show Collision Checks</Text>
+              <Switch
+                value={showCollisionChecks}
+                onValueChange={(val) => crossUpdate.notify('detail-checks', val)}
+                trackColor={{ false: '#ddd', true: '#4CAF50' }}
+                thumbColor={showCollisionChecks ? '#fff' : '#f4f3f4'}
+              />
             </View>
 
             {/* Grid System */}
             <View style={[styles.divider, dynamicStyles.divider]} />
             <Text style={styles.subsectionTitle}>Grid System</Text>
 
+            {/* Grid-based Collision - Synced with Quick Toggle */}
             <View style={styles.toggleContainer}>
-              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Grid-based Collision (matches toggle)</Text>
-              <Text style={[styles.smallText, { color: dynamicStyles.footerText.color }]}>Currently: {gridEnabled ? 'ON' : 'OFF'}</Text>
+              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>🔲 Grid-based Collision</Text>
+              <Switch
+                value={gridEnabled}
+                onValueChange={(val) => crossUpdate.notify('detail-grid', val)}
+                trackColor={{ false: '#ddd', true: '#4CAF50' }}
+                thumbColor={gridEnabled ? '#fff' : '#f4f3f4'}
+              />
             </View>
 
             {gridEnabled && (
@@ -761,9 +877,15 @@ export function UnifiedMenuOverlay({
                   />
                 </View>
 
+                {/* Show Occupied Voxels - Synced with Quick Toggle */}
                 <View style={styles.toggleContainer}>
-                  <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Show Occupied Voxels (matches toggle)</Text>
-                  <Text style={[styles.smallText, { color: dynamicStyles.footerText.color }]}>Currently: {showOccupiedVoxels ? 'ON' : 'OFF'}</Text>
+                  <Text style={[styles.label, { color: dynamicStyles.text.color }]}>📦 Show Occupied Voxels</Text>
+                  <Switch
+                    value={showOccupiedVoxels}
+                    onValueChange={(val) => crossUpdate.notify('detail-voxels', val)}
+                    trackColor={{ false: '#ddd', true: '#4CAF50' }}
+                    thumbColor={showOccupiedVoxels ? '#fff' : '#f4f3f4'}
+                  />
                 </View>
               </>
             )}
@@ -1101,6 +1223,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8, // Kompakter: 12 → 8
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
 
   // Picker Container
