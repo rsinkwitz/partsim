@@ -30,12 +30,11 @@
         height: 100%;
       }
 
-      /* Keyboard Help Overlay */
+      /* Keyboard Help Overlay - positioned on the right side */
       #keyHelp {
         position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
+        top: 20px;
+        right: 20px;
         background: rgba(0, 0, 0, 0.95);
         color: white;
         padding: 25px 35px;
@@ -43,9 +42,24 @@
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
         font-size: 13px;
         line-height: 1.8;
-        max-width: 600px;
+        max-width: 450px;
+        max-height: calc(100vh - 40px);
+        overflow-y: auto;
         z-index: 1000;
         display: none;
+      }
+
+      /* Mobile: Full-width help on small screens */
+      @media (max-width: 600px) {
+        #keyHelp {
+          top: 10px;
+          right: 10px;
+          left: 10px;
+          max-width: none;
+          max-height: calc(100vh - 20px);
+          padding: 20px;
+          font-size: 12px;
+        }
       }
 
       #keyHelp h2 {
@@ -93,15 +107,15 @@
         <div class="key-section">
           <h3>Simulation</h3>
           <div class="key-line"><kbd>Space</kbd> Start / Stop simulation</div>
-          <div class="key-line"><kbd>N</kbd> New simulation (reset)</div>
+          <div class="key-line"><kbd>A</kbd> Apply (generate balls with current settings)</div>
+          <div class="key-line"><kbd>R</kbd> Reset (restore all defaults)</div>
           <div class="key-line"><kbd>G</kbd> Toggle Gravity (Down ↔ Zero)</div>
         </div>
 
         <div class="key-section">
           <h3>3D Stereo</h3>
-          <div class="key-line"><kbd>3</kbd> Top-Bottom split screen (repeat = off)</div>
-          <div class="key-line"><kbd>4</kbd> Side-by-Side VR (Cardboard) (repeat = off)</div>
-          <div class="key-line"><kbd>A</kbd> Anaglyph red-blue (repeat = off)</div>
+          <div class="key-line"><kbd>3</kbd> Toggle Stereo (Top/Bottom on Web, Side-by-Side on Mobile)</div>
+          <div class="key-line"><kbd>Y</kbd> Anaglyph red-cyan (toggle)</div>
         </div>
 
         <div class="key-section">

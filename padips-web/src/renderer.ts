@@ -1260,7 +1260,9 @@ class PaDIPSApp {
   private toggleKeyHelp(): void {
     const helpDiv = document.getElementById('keyHelp');
     if (helpDiv) {
-      helpDiv.style.display = helpDiv.style.display === 'none' ? 'block' : 'none';
+      // Check computed style (includes CSS), not just inline style
+      const isVisible = window.getComputedStyle(helpDiv).display !== 'none';
+      helpDiv.style.display = isVisible ? 'none' : 'block';
     }
   }
 

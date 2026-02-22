@@ -46,6 +46,7 @@ export class SceneManager {
   private initialCameraDistance: number = 0; // Initiale Distanz von Kamera zu Target
   private currentCubeDepth: number = 0; // Aktueller Cube Depth Wert (-20 bis +20)
   private lastAspectRatio: number = 0; // Letzter Aspect Ratio für Orientierungswechsel-Erkennung
+  private initialZ: number = 5.0; // Initial camera Z distance (platform-specific)
 
   // Silver material for SILVER draw mode
   private silverMaterial: THREE.MeshStandardMaterial | null = null;
@@ -79,11 +80,16 @@ export class SceneManager {
       100 // far
     );
 
-    // Kamera immer auf fester Distanz (5) - FOV passt sich an
-    const cameraDistance = 5;
+    // Kamera-Distanz: Auf Web 10% näher für größeren Würfel (statt 110% Canvas-Vergrößerung)
+    // Mobile: Standard-Distanz
+    const isWeb = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mozilla') && !navigator.userAgent.includes('Mobile');
+    const cameraDistance = isWeb ? 4.5 : 5.0; // Web: 10% näher (5 / 1.1 ≈ 4.5)
 
     this.camera.position.set(0, 0, cameraDistance);
     this.camera.lookAt(0, 0, 0);
+
+    // Save initial Z distance for reset
+    this.initialZ = cameraDistance;
 
     // Speichere initialen Aspect Ratio
     this.lastAspectRatio = aspect;
@@ -935,8 +941,8 @@ export class SceneManager {
    * Reset camera to initial position and zoom
    */
   resetCamera(): void {
-    // Reset camera position to initial (0, 0, 5) - konstante Distanz
-    this.camera.position.set(0, 0, 5);
+    // Reset camera position to initial - use stored initialZ (platform-specific)
+    this.camera.position.set(0, 0, this.initialZ);
 
     // Reset controls target to origin
     this.controls.target.set(0, 0, 0);
@@ -958,7 +964,7 @@ export class SceneManager {
     this.camera.updateProjectionMatrix();
     this.controls.update();
 
-    console.log('📷 Camera reset: position=(0,0,5), FOV=', this.camera.fov.toFixed(1));
+    console.log('📷 Camera reset: position=(0,0,' + this.initialZ.toFixed(1) + '), FOV=', this.camera.fov.toFixed(1));
   }
 
   /**

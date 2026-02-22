@@ -244,6 +244,16 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
   useEffect(() => {
     if (Platform.OS === "web") {
       const handleKeyDown = (event) => {
+        // Escape key to close menu
+        if (event.key === 'Escape') {
+          if (showMenu) {
+            setShowMenu(false);
+            event.preventDefault();
+            console.log('⌨️ Menu closed via Escape');
+            return;
+          }
+        }
+
         // Menu toggle shortcuts ('M' or 'F10')
         if (event.key === 'm' || event.key === 'M' || event.key === 'F10') {
           setShowMenu(prev => !prev);
@@ -286,14 +296,14 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
       };
 
       window.addEventListener('keydown', handleKeyDown);
-      console.log('⌨️ Keyboard event forwarder installed (M/F10 for menu)');
+      console.log('⌨️ Keyboard event forwarder installed (M/F10 for menu, Esc to close)');
 
       return () => {
         window.removeEventListener('keydown', handleKeyDown);
         console.log('⌨️ Keyboard event forwarder removed');
       };
     }
-  }, []);
+  }, [showMenu]); // Add showMenu to dependency array so Escape key can access current menu state
 
   // Orientation detection (Mobile only)
   const previousOrientationRef = useRef(null);
@@ -810,8 +820,6 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
       {/* WebView Container - Platform/Orientation specific sizing */}
       <View style={[
         styles.webViewContainer,
-        Platform.OS === 'web' && stereoMode === 'off' && styles.webViewContainerWeb,
-        Platform.OS === 'web' && (stereoMode === 'topbottom' || stereoMode === 'sidebyside') && styles.webViewContainerWebStereo,
         Platform.OS !== 'web' && isPortrait && styles.webViewContainerPortrait,
         Platform.OS !== 'web' && !isPortrait && styles.webViewContainerLandscape,
         // In Landscape (NICHT Stereo): WebView schmaler wenn Menu offen
@@ -906,7 +914,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#000', // Schwarz, damit kein weißer Streifen sichtbar ist
   },
 
-  // WebView Container - Base (Vollbild, kein Platz für System-Icons)
+  // WebView Container - Clean 100% sizing on all platforms
   webViewContainer: {
     position: 'absolute',
     top: 0,
@@ -916,25 +924,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
 
-  // Web: 10% größer (110% = 1.1), zentriert - NUR im normalen Modus (nicht Stereo)
-  webViewContainerWeb: {
-    width: '110%',
-    height: '110%',
-    top: '50%',
-    left: '50%',
-    transform: [{ translateX: '-50%' }, { translateY: '-50%' }],
-  },
-
-  // Web Stereo (Top/Bottom oder Side-by-Side): Standard-Größe (100%), kein Offset
-  webViewContainerWebStereo: {
-    width: '100%',
-    height: '100%',
-    top: 0,
-    left: 0,
-    transform: [], // Kein transform needed
-  },
-
-  // Mobile Portrait: Vollbild (keine aspectRatio mehr)
+  // Mobile Portrait: Vollbild
   webViewContainerPortrait: {
     // Nutzt base container (100% x 100%)
   },
