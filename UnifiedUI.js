@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
-  Switch, Platform, Dimensions
+  Switch, Platform, Dimensions, TouchableWithoutFeedback
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
@@ -589,6 +589,12 @@ export function UnifiedMenuOverlay({
 
   return (
     <View style={styles.overlay}>
+      {/* Transparent background - tap to close */}
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={styles.overlayBackground} />
+      </TouchableWithoutFeedback>
+
+      {/* Menu content - scrollable, doesn't close on tap */}
       <SafeAreaView
         style={[
           styles.menuContainer,
@@ -1194,7 +1200,11 @@ const styles = StyleSheet.create({
     zIndex: 9999,
   },
   overlayBackground: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'transparent',
   },
   menuContainer: {
