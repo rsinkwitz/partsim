@@ -205,6 +205,17 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
             if (data.gravityPreset !== undefined) {
               setGravityPreset(data.gravityPreset);
             }
+
+            // Update grid/visualization states if changed (e.g., via keyboard shortcuts [I][V][C])
+            if (data.gridEnabled !== undefined) {
+              setGridEnabled(data.gridEnabled);
+            }
+            if (data.showOccupiedVoxels !== undefined) {
+              setShowOccupiedVoxels(data.showOccupiedVoxels);
+            }
+            if (data.showCollisionChecks !== undefined) {
+              setShowCollisionChecks(data.showCollisionChecks);
+            }
           } else if (data.type === 'cubeDepthUpdate') {
             // Update cube depth slider (e.g., via keyboard shortcuts Ctrl+/-)
             if (data.cubeDepth !== undefined) {
@@ -247,13 +258,19 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
     }
   }, []);
 
+  // Ref to access current showMenu state without recreating handler
+  const showMenuRef = useRef(showMenu);
+  useEffect(() => {
+    showMenuRef.current = showMenu;
+  }, [showMenu]);
+
   // Forward keyboard events to iframe (for shortcuts to work always on Web)
   useEffect(() => {
     if (Platform.OS === "web") {
       const handleKeyDown = (event) => {
-        // Escape key to close menu
+        // Escape key to close menu (use ref to get current state)
         if (event.key === 'Escape') {
-          if (showMenu) {
+          if (showMenuRef.current) {
             setShowMenu(false);
             event.preventDefault();
             console.log('⌨️ Menu closed via Escape');
@@ -290,7 +307,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           }), '*');
 
           // Prevent default for known shortcuts (updated list)
-          const shortcuts = ['s', 'a', 'r', 'y', '3', 'd', 't', 'w', 'p', 'g', 'x', 'F1'];
+          const shortcuts = ['s', 'a', 'r', 'y', '3', 'd', 't', 'w', 'p', 'g', 'x', 'i', 'v', 'c', 'F1'];
           if (shortcuts.includes(event.key) ||
               event.key === '+' || event.key === '-' ||
               event.key === 'j' || event.key === 'k' ||
@@ -303,14 +320,14 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
       };
 
       window.addEventListener('keydown', handleKeyDown);
-      console.log('⌨️ Keyboard event forwarder installed (M/F10 for menu, Esc to close)');
+      console.log('⌨️ Keyboard event forwarder installed ONCE (M/F10 for menu, Esc to close)');
 
       return () => {
         window.removeEventListener('keydown', handleKeyDown);
-        console.log('⌨️ Keyboard event forwarder removed');
+        console.log('⌨️ Keyboard event forwarder removed (component unmount)');
       };
     }
-  }, [showMenu]); // Add showMenu to dependency array so Escape key can access current menu state
+  }, []); // Empty dependency array - install ONCE, not on every showMenu change!
 
   // Orientation detection (Mobile only)
   const previousOrientationRef = useRef(null);

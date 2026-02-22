@@ -918,6 +918,24 @@ class PaDIPSApp {
           console.log('⌨️ [G] Gravity toggled');
           break;
 
+        case 'i':
+          // Toggle grid system
+          this.toggleGrid();
+          console.log('⌨️ [I] Grid toggled');
+          break;
+
+        case 'v':
+          // Toggle show occupied voxels
+          this.toggleShowOccupiedVoxels();
+          console.log('⌨️ [V] Voxels toggled');
+          break;
+
+        case 'c':
+          // Toggle show collision checks
+          this.toggleShowCollisionChecks();
+          console.log('⌨️ [C] Collision checks toggled');
+          break;
+
         case 'w':
           // Toggle wireframe
           this.toggleDrawMode(DrawMode.WIREFRAME);
@@ -1222,6 +1240,75 @@ class PaDIPSApp {
   }
 
   /**
+   * Toggle grid system on/off
+   */
+  private toggleGrid(): void {
+    // No HTML UI in React Native - toggle internal state directly
+    this.visualizationState.gridEnabled = !this.visualizationState.gridEnabled;
+    const newState = this.visualizationState.gridEnabled;
+
+    console.log('🔲 Grid toggled to:', newState);
+
+    // Actually enable/disable the grid in the physics engine
+    if (newState) {
+      // Enable grid
+      const segments = this.visualizationState.gridSegments?.x || 8;
+      const segmentsVec = new THREE.Vector3(segments, segments, segments);
+
+      this.physicsEngine.setGridSegments(segmentsVec);
+      this.physicsEngine.setGridEnabled(true);
+
+      console.log('✅ Grid enabled with', segments, 'segments');
+    } else {
+      // Disable grid
+      this.physicsEngine.setGridEnabled(false);
+
+      console.log('✅ Grid disabled');
+    }
+
+    // Send state update to parent so UI controls update
+    this.sendStateToParent();
+  }
+
+  /**
+   * Toggle show occupied voxels
+   */
+  private toggleShowOccupiedVoxels(): void {
+    // No HTML UI in React Native - toggle internal state directly
+    this.visualizationState.showOccupiedVoxels = !this.visualizationState.showOccupiedVoxels;
+    const newState = this.visualizationState.showOccupiedVoxels;
+
+    console.log('📦 Show Voxels toggled to:', newState);
+
+    // Update visualization
+    this.sceneManager.setShowOccupiedVoxels(newState);
+
+    // Send state update to parent so UI controls update
+    this.sendStateToParent();
+  }
+
+  /**
+   * Toggle show collision checks
+   */
+  private toggleShowCollisionChecks(): void {
+    // No HTML UI in React Native - toggle internal state directly
+    this.visualizationState.showCollisionChecks = !this.visualizationState.showCollisionChecks;
+    const newState = this.visualizationState.showCollisionChecks;
+
+    console.log('🔍 Show Collision Checks toggled to:', newState);
+
+    // Update visualization (SceneManager)
+    this.sceneManager.setShowCollisionChecks(newState);
+
+    // IMPORTANT: Also tell PhysicsEngine to track collision checks!
+    // Without this, the checks won't be recorded and no lines will appear
+    this.physicsEngine.setTrackCollisionChecks(newState);
+
+    // Send state update to parent so UI controls update
+    this.sendStateToParent();
+  }
+
+  /**
    * Change cube depth by delta
    */
   private changeCubeDepth(delta: number): void {
@@ -1338,6 +1425,10 @@ class PaDIPSApp {
       // Rendering & Physics (for keyboard shortcut feedback)
       drawMode: this.sceneManager.getDrawMode(),
       gravityPreset: gravityPreset,
+      // Grid & Visualization states (for keyboard shortcut feedback)
+      gridEnabled: this.visualizationState.gridEnabled,
+      showOccupiedVoxels: this.visualizationState.showOccupiedVoxels,
+      showCollisionChecks: this.visualizationState.showCollisionChecks,
       // NOTE: turnSpeed is NOT included in regular updates
       // It is only sent when changed via 't' keyboard shortcut (sendImmediateUpdate)
     };

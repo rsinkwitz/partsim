@@ -101,7 +101,6 @@ function MainControls({ isRunning, onTogglePlayPause, onReset, onClose }) {
 function CompactToggles({
   // States
   drawMode,
-  setDrawMode,
   gravityPreset,
   setGravityPreset,
   gridEnabled,
@@ -124,23 +123,50 @@ function CompactToggles({
   const textColor = isDarkMode ? '#e0e0e0' : '#333';
   const bgColor = isDarkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)';
 
-  // Toggle handlers now use crossUpdate.notify for bi-directional sync
-
-  // Toggle handlers now use crossUpdate.notify for bi-directional sync
+  // Toggle handlers use crossUpdate.notify for bi-directional sync
 
   // Stereo Toggle Handler - Platform-specific
   const handleStereoToggle = (enabled) => {
     crossUpdate.notify('toggle-stereo', enabled);
   };
 
-  // Silver Toggle (LIGHTED ↔ SILVER)
+  // Silver Toggle - Only notify on REAL user click, not on re-render
   const handleSilverToggle = (enabled) => {
-    crossUpdate.notify('toggle-silver', enabled);
+    console.log('🎚️ handleSilverToggle called:');
+    console.log('  enabled:', enabled);
+    console.log('  current drawMode:', drawMode);
+
+    // Check if this is a user action or just a re-render
+    const currentlyOn = drawMode === 'SILVER';
+    console.log('  currentlyOn:', currentlyOn);
+    console.log('  enabled !== currentlyOn:', enabled !== currentlyOn);
+
+    if (enabled !== currentlyOn) {
+      console.log('  ✅ NOTIFYING crossUpdate');
+      // Real change from user - notify WITHOUT value
+      // Updater will read current drawMode state
+      crossUpdate.notify('toggle-silver', enabled);
+    } else {
+      console.log('  ⏭️ SKIPPING notify (no real change)');
+    }
   };
 
-  // Gravity Toggle (ZERO ↔ DOWN)
+  // Gravity Toggle (ZERO ↔ DOWN) - Only notify on real user click
   const handleGravityToggle = (enabled) => {
-    crossUpdate.notify('toggle-gravity', enabled);
+    console.log('🌍 handleGravityToggle called:');
+    console.log('  enabled:', enabled);
+    console.log('  current gravityPreset:', gravityPreset);
+
+    const currentlyOn = gravityPreset === 'DOWN';
+    console.log('  currentlyOn:', currentlyOn);
+    console.log('  enabled !== currentlyOn:', enabled !== currentlyOn);
+
+    if (enabled !== currentlyOn) {
+      console.log('  ✅ NOTIFYING crossUpdate');
+      crossUpdate.notify('toggle-gravity', enabled);
+    } else {
+      console.log('  ⏭️ SKIPPING notify (no real change)');
+    }
   };
 
   // Grid Toggle
@@ -355,22 +381,79 @@ export function UnifiedMenuOverlay({
     if (!syncInitialized.current) {
       syncInitialized.current = true;
 
-      // Create state updater function
+      // Create updater function objects (like original crossupdate.js)
+      // Since these are only used ONCE (unlike cross-update3.html where
+      // comp_unit/comp_total are reused many times), we use simple objects
+      // with closures to setDrawMode and sendToWebView
+
+      // When Toggle changes → update Combo
+      const comboFromToggleFunc = {
+        doFunction: function(target, toggleValue) {
+          console.log('🔄 comboFromToggle.doFunction called:');
+          console.log('  target:', target);
+          console.log('  toggleValue:', toggleValue);
+          console.log('  current drawMode:', drawMode);
+
+          // toggleValue is the NEW state from toggle (true/false)
+          const newMode = toggleValue ? 'SILVER' : 'LIGHTED';
+          console.log('  → setting drawMode to:', newMode);
+
+          setDrawMode(newMode);
+          sendToWebView('setDrawMode', newMode);
+        }
+      };
+
+      // When Combo changes → update Toggle (passively)
+      const toggleFromComboFunc = {
+        doFunction: function(target, comboValue) {
+          console.log('🔄 toggleFromCombo.doFunction called:');
+          console.log('  target:', target);
+          console.log('  comboValue:', comboValue);
+          console.log('  current drawMode:', drawMode);
+          console.log('  → doing nothing (Toggle reads state passively)');
+
+          // Do nothing - Toggle reads drawMode via value={drawMode === 'SILVER'}
+          // React will re-render automatically when drawMode changes
+        }
+      };
+
+      // Gravity: When Toggle changes → update Combo
+      const gravityComboFromToggleFunc = {
+        doFunction: function(target, toggleValue) {
+          console.log('🔄 gravityComboFromToggle.doFunction called:');
+          console.log('  target:', target);
+          console.log('  toggleValue:', toggleValue);
+          console.log('  current gravityPreset:', gravityPreset);
+
+          // toggleValue is the NEW state from toggle (true/false)
+          const newPreset = toggleValue ? 'DOWN' : 'ZERO';
+          console.log('  → setting gravityPreset to:', newPreset);
+
+          setGravityPreset(newPreset);
+          sendToWebView('setGravityPreset', { preset: newPreset, magnitude: gravityMagnitude });
+        }
+      };
+
+      // Gravity: When Combo changes → update Toggle (passively)
+      const gravityToggleFromComboFunc = {
+        doFunction: function(target, comboValue) {
+          console.log('🔄 gravityToggleFromCombo.doFunction called:');
+          console.log('  target:', target);
+          console.log('  comboValue:', comboValue);
+          console.log('  current gravityPreset:', gravityPreset);
+          console.log('  → doing nothing (Toggle reads state passively)');
+
+          // Do nothing - Toggle reads gravityPreset via value={gravityPreset === 'DOWN'}
+          // React will re-render automatically when gravityPreset changes
+        }
+      };
+
+      // Generic updater for other controls
       const updateState = (controlId, value) => {
         switch (controlId) {
-          case 'toggle-silver':
-          case 'detail-drawmode':
-            const mode = value ? 'SILVER' : 'LIGHTED';
-            setDrawMode(mode);
-            sendToWebView('setDrawMode', mode);
-            break;
-
-          case 'toggle-gravity':
-          case 'detail-gravity':
-            const preset = value ? 'DOWN' : 'ZERO';
-            setGravityPreset(preset);
-            sendToWebView('setGravityPreset', { preset, magnitude: gravityMagnitude });
-            break;
+          // Note: 'detail-drawmode' and 'detail-gravity' are NOT here!
+          // Combos set state DIRECTLY, not via updateState
+          // Only notify CrossUpdate for Toggle to update
 
           case 'toggle-grid':
           case 'detail-grid':
@@ -417,12 +500,19 @@ export function UnifiedMenuOverlay({
 
       const syncFunc = createSyncFunction(updateState);
 
-      // Bi-directional sync: Compact Toggle ↔ Detail Control
-      crossUpdate.watch('toggle-silver', 'detail-drawmode', syncFunc);
-      crossUpdate.watch('detail-drawmode', 'toggle-silver', syncFunc);
+      // STEP 2: Bidirectional CrossUpdate sync for drawMode
+      // When toggle-silver changes → update detail-drawmode (Combo)
+      crossUpdate.watch('detail-drawmode', 'toggle-silver', comboFromToggleFunc);
+      // When detail-drawmode changes → update toggle-silver (Toggle)
+      crossUpdate.watch('toggle-silver', 'detail-drawmode', toggleFromComboFunc);
 
-      crossUpdate.watch('toggle-gravity', 'detail-gravity', syncFunc);
-      crossUpdate.watch('detail-gravity', 'toggle-gravity', syncFunc);
+      // Bidirectional CrossUpdate sync for gravity (same pattern as drawMode)
+      // When toggle-gravity changes → update detail-gravity (Combo)
+      crossUpdate.watch('detail-gravity', 'toggle-gravity', gravityComboFromToggleFunc);
+      // When detail-gravity changes → update toggle-gravity (Toggle)
+      crossUpdate.watch('toggle-gravity', 'detail-gravity', gravityToggleFromComboFunc);
+
+      // Bi-directional sync: Compact Toggle ↔ Detail Control (other controls)
 
       crossUpdate.watch('toggle-grid', 'detail-grid', syncFunc);
       crossUpdate.watch('detail-grid', 'toggle-grid', syncFunc);
@@ -545,7 +635,6 @@ export function UnifiedMenuOverlay({
 
           <CompactToggles
             drawMode={drawMode}
-            setDrawMode={setDrawMode}
             gravityPreset={gravityPreset}
             setGravityPreset={setGravityPreset}
             gridEnabled={gridEnabled}
@@ -677,18 +766,88 @@ export function UnifiedMenuOverlay({
               />
             </View>
 
-            {/* Gravity - Synced with Quick Toggle */}
-            <View style={styles.toggleContainer}>
-              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>🌍 Gravity</Text>
-              <View style={styles.toggleRow}>
-                <Text style={[styles.smallText, { color: dynamicStyles.footerText.color }]}>{gravityPreset === 'DOWN' ? 'Down' : 'Zero'}</Text>
-                <Switch
-                  value={gravityPreset === 'DOWN'}
-                  onValueChange={(val) => crossUpdate.notify('detail-gravity', val)}
-                  trackColor={{ false: '#ccc', true: '#4CAF50' }}
-                  thumbColor={gravityPreset === 'DOWN' ? '#fff' : '#f4f3f4'}
-                />
-              </View>
+            {/* Gravity - Full Picker (like Draw Mode) */}
+            <View style={styles.pickerContainer}>
+              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>🌍 Gravity Direction</Text>
+              {Platform.OS === 'web' ? (
+                <select
+                  value={gravityPreset}
+                  onChange={(e) => {
+                    const preset = e.target.value;
+                    console.log('📝 Gravity Combo onChange (web):');
+                    console.log('  preset:', preset);
+                    console.log('  current gravityPreset:', gravityPreset);
+
+                    // FIRST: Set state directly
+                    setGravityPreset(preset);
+                    sendToWebView('setGravityPreset', { preset, magnitude: gravityMagnitude });
+
+                    // THEN: Notify CrossUpdate so Toggle can update
+                    console.log('  → notifying crossUpdate (for Toggle)');
+                    crossUpdate.notify('detail-gravity', preset);
+                  }}
+                  style={{
+                    padding: '8px',
+                    borderRadius: '4px',
+                    border: isDarkMode ? '1px solid #555' : '1px solid #ddd',
+                    backgroundColor: isDarkMode ? '#2a2a2a' : 'white',
+                    color: isDarkMode ? '#e0e0e0' : '#333',
+                    fontSize: '13px',
+                    width: '100%',
+                    marginTop: '4px'
+                  }}
+                >
+                  <option value="ZERO">🚫 Zero</option>
+                  <option value="DOWN">⬇️ Down</option>
+                  <option value="UP">⬆️ Up</option>
+                  <option value="LEFT">⬅️ Left</option>
+                  <option value="RIGHT">➡️ Right</option>
+                  <option value="FRONT">🔽 Front</option>
+                  <option value="REAR">🔼 Rear</option>
+                </select>
+              ) : (
+                <View style={styles.pickerButtons}>
+                  {[
+                    { value: 'ZERO', label: '🚫 Zero' },
+                    { value: 'DOWN', label: '⬇️ Down' },
+                    { value: 'UP', label: '⬆️ Up' },
+                    { value: 'LEFT', label: '⬅️ Left' },
+                    { value: 'RIGHT', label: '➡️ Right' },
+                    { value: 'FRONT', label: '🔽 Front' },
+                    { value: 'REAR', label: '🔼 Rear' }
+                  ].map(({ value, label }) => (
+                    <TouchableOpacity
+                      key={value}
+                      style={[
+                        styles.pickerButton,
+                        gravityPreset === value && styles.pickerButtonActive,
+                        isDarkMode && gravityPreset === value && styles.pickerButtonActiveDark
+                      ]}
+                      onPress={() => {
+                        console.log('📝 Gravity Combo onPress (mobile):');
+                        console.log('  preset:', value);
+                        console.log('  current gravityPreset:', gravityPreset);
+
+                        // FIRST: Set state directly
+                        setGravityPreset(value);
+                        sendToWebView('setGravityPreset', { preset: value, magnitude: gravityMagnitude });
+
+                        // THEN: Notify CrossUpdate so Toggle can update
+                        console.log('  → notifying crossUpdate (for Toggle)');
+                        crossUpdate.notify('detail-gravity', value);
+                      }}
+                    >
+                      <Text style={[
+                        styles.pickerButtonText,
+                        gravityPreset === value && styles.pickerButtonTextActive,
+                        isDarkMode && { color: gravityPreset === value ? '#fff' : '#999' }
+                      ]}>
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </View>
           </CollapsibleSection>
 
@@ -709,18 +868,79 @@ export function UnifiedMenuOverlay({
               />
             </View>
 
-            {/* Draw Mode - Synced with Silver Toggle */}
-            <View style={styles.toggleContainer}>
-              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>✨ Silver Material</Text>
-              <View style={styles.toggleRow}>
-                <Text style={[styles.smallText, { color: dynamicStyles.footerText.color }]}>{drawMode === 'SILVER' ? 'Silver' : 'Lighted'}</Text>
-                <Switch
-                  value={drawMode === 'SILVER'}
-                  onValueChange={(val) => crossUpdate.notify('detail-drawmode', val)}
-                  trackColor={{ false: '#ccc', true: '#4CAF50' }}
-                  thumbColor={drawMode === 'SILVER' ? '#fff' : '#f4f3f4'}
-                />
-              </View>
+            {/* Draw Mode - Full Picker */}
+            <View style={styles.pickerContainer}>
+              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>🎨 Draw Mode</Text>
+              {Platform.OS === 'web' ? (
+                <select
+                  value={drawMode}
+                  onChange={(e) => {
+                    const newMode = e.target.value;
+                    console.log('📝 Combo onChange (web):');
+                    console.log('  newMode:', newMode);
+                    console.log('  current drawMode:', drawMode);
+
+                    // FIRST: Set state directly (not via CrossUpdate!)
+                    setDrawMode(newMode);
+                    sendToWebView('setDrawMode', newMode);
+
+                    // THEN: Notify CrossUpdate so Toggle can update
+                    console.log('  → notifying crossUpdate (for Toggle)');
+                    crossUpdate.notify('detail-drawmode', newMode);
+                  }}
+                  style={{
+                    padding: '8px',
+                    borderRadius: '4px',
+                    border: isDarkMode ? '1px solid #555' : '1px solid #ddd',
+                    backgroundColor: isDarkMode ? '#2a2a2a' : 'white',
+                    color: isDarkMode ? '#e0e0e0' : '#333',
+                    fontSize: '13px',
+                    width: '100%',
+                    marginTop: '4px'
+                  }}
+                >
+                  <option value="LIGHTED">Lighted</option>
+                  <option value="WIREFRAME">Wireframe</option>
+                  <option value="POINTS">Points</option>
+                  <option value="SILVER">Silver</option>
+                </select>
+              ) : (
+                <View style={styles.pickerButtons}>
+                  {['LIGHTED', 'WIREFRAME', 'POINTS', 'SILVER'].map((mode) => (
+                    <TouchableOpacity
+                      key={mode}
+                      style={[
+                        styles.pickerButton,
+                        drawMode === mode && styles.pickerButtonActive,
+                        isDarkMode && drawMode === mode && styles.pickerButtonActiveDark
+                      ]}
+                      onPress={() => {
+                        console.log('📝 Combo onPress (mobile):');
+                        console.log('  mode:', mode);
+                        console.log('  current drawMode:', drawMode);
+
+                        // FIRST: Set state directly (not via CrossUpdate!)
+                        setDrawMode(mode);
+                        sendToWebView('setDrawMode', mode);
+
+                        // THEN: Notify CrossUpdate so Toggle can update
+                        console.log('  → notifying crossUpdate (for Toggle)');
+                        crossUpdate.notify('detail-drawmode', mode);
+                      }}
+                    >
+                      <Text style={[
+                        styles.pickerButtonText,
+                        drawMode === mode && styles.pickerButtonTextActive,
+                        isDarkMode && { color: drawMode === mode ? '#fff' : '#999' }
+                      ]}>
+                        {mode === 'LIGHTED' ? '💡' : mode === 'WIREFRAME' ? '🕸️' : mode === 'POINTS' ? '⚫' : '✨'}
+                        {' '}
+                        {mode.charAt(0) + mode.slice(1).toLowerCase()}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </View>
 
             <View style={styles.sliderContainer}>
@@ -747,17 +967,12 @@ export function UnifiedMenuOverlay({
             {/* Stereo - Synced with Quick Toggle */}
             <View style={styles.toggleContainer}>
               <Text style={[styles.label, { color: dynamicStyles.text.color }]}>🕶️ Stereo Mode</Text>
-              <View style={styles.toggleRow}>
-                <Text style={[styles.smallText, { color: dynamicStyles.footerText.color }]}>
-                  {stereoMode === 'off' ? 'Off' : stereoMode}
-                </Text>
-                <Switch
-                  value={stereoMode !== 'off'}
-                  onValueChange={(val) => crossUpdate.notify('detail-stereo', val)}
-                  trackColor={{ false: '#ccc', true: '#4CAF50' }}
-                  thumbColor={stereoMode !== 'off' ? '#fff' : '#f4f3f4'}
-                />
-              </View>
+              <Switch
+                value={stereoMode !== 'off'}
+                onValueChange={(val) => crossUpdate.notify('detail-stereo', val)}
+                trackColor={{ false: '#ccc', true: '#4CAF50' }}
+                thumbColor={stereoMode !== 'off' ? '#fff' : '#f4f3f4'}
+              />
             </View>
 
             {stereoMode !== 'off' && (
@@ -1233,6 +1448,40 @@ const styles = StyleSheet.create({
   // Picker Container
   pickerContainer: {
     marginBottom: 8, // Kompakter: 12 → 8
+  },
+  pickerButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
+  },
+  pickerButton: {
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: '#f0f0f0',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  pickerButtonActive: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+  },
+  pickerButtonActiveDark: {
+    backgroundColor: '#388E3C',
+    borderColor: '#388E3C',
+  },
+  pickerButtonText: {
+    color: '#666',
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  pickerButtonTextActive: {
+    color: '#fff',
+    fontWeight: '700',
   },
 
   // Footer
