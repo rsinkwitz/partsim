@@ -80,7 +80,7 @@ const PersistentWebView = React.memo(({ webAppUri, webViewRef, injectedJavaScrip
 
 function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setError, webViewRef }) {
   // UI State - Balls
-  const [ballCount, setBallCount] = useState(30);
+  const [ballCount, setBallCount] = useState(100);
   const [minRadius, setMinRadius] = useState(5); // in cm (stored as slider value)
   const [maxRadius, setMaxRadius] = useState(15); // in cm (stored as slider value)
   const [maxVelocity, setMaxVelocity] = useState(2.0);
@@ -109,7 +109,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
   const [eyeSeparation, setEyeSeparation] = useState(8.0); // in cm
   // Start with 0.01 instead of 0 to work around React Native Web Slider rendering bug
   const [cubeDepth, setCubeDepth] = useState(0.01);
-  const [turnSpeed, setTurnSpeed] = useState(0); // Auto-rotation speed: 0=off, 1-4=speed multiplier
+  const [turnSpeed, setTurnSpeed] = useState(1); // Auto-rotation speed: 0=off, 1-4=speed multiplier
   const [isDarkMode, setIsDarkMode] = useState(false); // Dark mode for UI
 
   // WebView loaded state for initial cube depth fix
@@ -133,7 +133,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
 
   // Stats from WebView
   const [fps, setFps] = useState(0);
-  const [actualBallCount, setActualBallCount] = useState(30);
+  const [actualBallCount, setActualBallCount] = useState(100);
   const [generation, setGeneration] = useState(0);
   const [isRunning, setIsRunning] = useState(true);
   const [checks, setChecks] = useState(0);

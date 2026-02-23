@@ -6,11 +6,124 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
-  Switch, Platform, Dimensions, TouchableWithoutFeedback
+  Switch, Platform, Dimensions, TouchableWithoutFeedback, Modal
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
 import { crossUpdate, createSyncFunction } from './src/utils/CrossUpdate';
+
+/**
+ * Dropdown Picker for Mobile - Compact dropdown-style selector
+ */
+function DropdownPicker({ value, options, onChange, getLabel, getIcon, isDarkMode }) {
+  const [showModal, setShowModal] = useState(false);
+
+  const currentOption = options.find(opt => opt.value === value) || options[0];
+  const bgColor = isDarkMode ? '#2a2a2a' : 'white';
+  const textColor = isDarkMode ? '#e0e0e0' : '#333';
+  const borderColor = isDarkMode ? '#555' : '#ddd';
+
+  return (
+    <>
+      {/* Current value button */}
+      <TouchableOpacity
+        style={{
+          padding: 8,
+          borderRadius: 4,
+          border: `1px solid ${borderColor}`,
+          backgroundColor: bgColor,
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginTop: 4,
+        }}
+        onPress={() => setShowModal(true)}
+      >
+        <Text style={{ color: textColor, fontSize: 13 }}>
+          {getIcon ? getIcon(currentOption.value) + ' ' : ''}
+          {getLabel ? getLabel(currentOption.value) : currentOption.label}
+        </Text>
+        <Text style={{ color: textColor, fontSize: 13 }}>▼</Text>
+      </TouchableOpacity>
+
+      {/* Modal with options */}
+      <Modal
+        visible={showModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowModal(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowModal(false)}>
+          <View style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            justifyContent: 'center',
+            alignItems: 'center'
+          }}>
+            <TouchableWithoutFeedback>
+              <View style={{
+                backgroundColor: bgColor,
+                borderRadius: 8,
+                padding: 8,
+                minWidth: 200,
+                maxWidth: '80%',
+              }}>
+                <Text style={{
+                  color: textColor,
+                  fontSize: 14,
+                  fontWeight: 'bold',
+                  marginBottom: 8,
+                  textAlign: 'center'
+                }}>
+                  Select Option
+                </Text>
+                {options.map((opt) => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={{
+                      padding: 12,
+                      borderRadius: 4,
+                      backgroundColor: value === opt.value
+                        ? (isDarkMode ? '#4CAF50' : '#4CAF50')
+                        : (isDarkMode ? '#1a1a1a' : '#f5f5f5'),
+                      marginBottom: 4,
+                    }}
+                    onPress={() => {
+                      onChange(opt.value);
+                      setShowModal(false);
+                    }}
+                  >
+                    <Text style={{
+                      color: value === opt.value ? '#fff' : textColor,
+                      fontSize: 13,
+                      textAlign: 'center'
+                    }}>
+                      {getIcon ? getIcon(opt.value) + ' ' : ''}
+                      {getLabel ? getLabel(opt.value) : opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+                <TouchableOpacity
+                  style={{
+                    padding: 12,
+                    borderRadius: 4,
+                    backgroundColor: isDarkMode ? '#333' : '#ddd',
+                    marginTop: 8,
+                  }}
+                  onPress={() => setShowModal(false)}
+                >
+                  <Text style={{ color: textColor, fontSize: 13, textAlign: 'center' }}>
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+    </>
+  );
+}
 
 /**
  * Button with Tooltip (Web only)
@@ -812,8 +925,9 @@ export function UnifiedMenuOverlay({
                   <option value="REAR">🔼 Rear</option>
                 </select>
               ) : (
-                <View style={styles.pickerButtons}>
-                  {[
+                <DropdownPicker
+                  value={gravityPreset}
+                  options={[
                     { value: 'ZERO', label: '🚫 Zero' },
                     { value: 'DOWN', label: '⬇️ Down' },
                     { value: 'UP', label: '⬆️ Up' },
@@ -821,38 +935,15 @@ export function UnifiedMenuOverlay({
                     { value: 'RIGHT', label: '➡️ Right' },
                     { value: 'FRONT', label: '🔽 Front' },
                     { value: 'REAR', label: '🔼 Rear' }
-                  ].map(({ value, label }) => (
-                    <TouchableOpacity
-                      key={value}
-                      style={[
-                        styles.pickerButton,
-                        gravityPreset === value && styles.pickerButtonActive,
-                        isDarkMode && gravityPreset === value && styles.pickerButtonActiveDark
-                      ]}
-                      onPress={() => {
-                        console.log('📝 Gravity Combo onPress (mobile):');
-                        console.log('  preset:', value);
-                        console.log('  current gravityPreset:', gravityPreset);
-
-                        // FIRST: Set state directly
-                        setGravityPreset(value);
-                        sendToWebView('setGravityPreset', { preset: value, magnitude: gravityMagnitude });
-
-                        // THEN: Notify CrossUpdate so Toggle can update
-                        console.log('  → notifying crossUpdate (for Toggle)');
-                        crossUpdate.notify('detail-gravity', value);
-                      }}
-                    >
-                      <Text style={[
-                        styles.pickerButtonText,
-                        gravityPreset === value && styles.pickerButtonTextActive,
-                        isDarkMode && { color: gravityPreset === value ? '#fff' : '#999' }
-                      ]}>
-                        {label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                  ]}
+                  onChange={(preset) => {
+                    console.log('📝 Gravity Dropdown onChange (mobile):', preset);
+                    setGravityPreset(preset);
+                    sendToWebView('setGravityPreset', { preset, magnitude: gravityMagnitude });
+                    crossUpdate.notify('detail-gravity', preset);
+                  }}
+                  isDarkMode={isDarkMode}
+                />
               )}
             </View>
           </CollapsibleSection>
@@ -911,41 +1002,28 @@ export function UnifiedMenuOverlay({
                   <option value="SILVER">Silver</option>
                 </select>
               ) : (
-                <View style={styles.pickerButtons}>
-                  {['LIGHTED', 'WIREFRAME', 'POINTS', 'SILVER'].map((mode) => (
-                    <TouchableOpacity
-                      key={mode}
-                      style={[
-                        styles.pickerButton,
-                        drawMode === mode && styles.pickerButtonActive,
-                        isDarkMode && drawMode === mode && styles.pickerButtonActiveDark
-                      ]}
-                      onPress={() => {
-                        console.log('📝 Combo onPress (mobile):');
-                        console.log('  mode:', mode);
-                        console.log('  current drawMode:', drawMode);
-
-                        // FIRST: Set state directly (not via CrossUpdate!)
-                        setDrawMode(mode);
-                        sendToWebView('setDrawMode', mode);
-
-                        // THEN: Notify CrossUpdate so Toggle can update
-                        console.log('  → notifying crossUpdate (for Toggle)');
-                        crossUpdate.notify('detail-drawmode', mode);
-                      }}
-                    >
-                      <Text style={[
-                        styles.pickerButtonText,
-                        drawMode === mode && styles.pickerButtonTextActive,
-                        isDarkMode && { color: drawMode === mode ? '#fff' : '#999' }
-                      ]}>
-                        {mode === 'LIGHTED' ? '💡' : mode === 'WIREFRAME' ? '🕸️' : mode === 'POINTS' ? '⚫' : '✨'}
-                        {' '}
-                        {mode.charAt(0) + mode.slice(1).toLowerCase()}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                <DropdownPicker
+                  value={drawMode}
+                  options={[
+                    { value: 'LIGHTED', label: 'Lighted' },
+                    { value: 'WIREFRAME', label: 'Wireframe' },
+                    { value: 'POINTS', label: 'Points' },
+                    { value: 'SILVER', label: 'Silver' },
+                  ]}
+                  onChange={(newMode) => {
+                    console.log('📝 Dropdown onChange (mobile):', newMode);
+                    setDrawMode(newMode);
+                    sendToWebView('setDrawMode', newMode);
+                    crossUpdate.notify('detail-drawmode', newMode);
+                  }}
+                  getIcon={(mode) =>
+                    mode === 'LIGHTED' ? '💡' :
+                    mode === 'WIREFRAME' ? '🕸️' :
+                    mode === 'POINTS' ? '⚫' : '✨'
+                  }
+                  getLabel={(mode) => mode.charAt(0) + mode.slice(1).toLowerCase()}
+                  isDarkMode={isDarkMode}
+                />
               )}
             </View>
 

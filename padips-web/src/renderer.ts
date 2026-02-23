@@ -34,7 +34,7 @@ class PaDIPSApp {
   private frameCount: number = 0;
   private lastFpsUpdate: number = 0;
   private currentFps: number = 0;
-  private turnSpeed: number = 0; // Auto-rotation speed: 0=off, 1=1x, 2=2x, 3=3x, 4=4x
+  private turnSpeed: number = 1; // Auto-rotation speed: 0=off, 1=1x, 2=2x, 3=3x, 4=4x
 
   // Track last sent values to avoid duplicate updates
   private lastSentState = {
@@ -99,6 +99,10 @@ class PaDIPSApp {
 
     // Auto-start Physik-Simulation
     this.start();
+
+    // Enable auto-rotation at startup (turnSpeed = 1)
+    this.sceneManager.setAutoRotation(true, this.turnSpeed);
+    console.log('🔄 Auto-rotation enabled at startup: ' + this.turnSpeed + 'x speed');
 
     // Setup PostMessage listener for external control (React Native/iframe)
     this.setupPostMessageListener();
