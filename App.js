@@ -877,7 +877,9 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
         visible={showMenu}
         onClose={() => setShowMenu(false)}
         fps={fps}
-        ballCount={actualBallCount}
+        ballCount={ballCount}
+        setBallCount={setBallCount}
+        actualBallCount={actualBallCount}
         generation={generation}
         checks={checks}
         isRunning={isRunning}

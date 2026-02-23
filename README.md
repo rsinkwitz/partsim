@@ -32,22 +32,32 @@ Cross-platform app (iOS, Android, Web) with Three.js WebView/iframe integration.
 ## 🎯 Features
 
 ✅ **Kern-Physik**
-- 30 Bälle bei Start (bis zu 1000 möglich)
+- 30 Bälle bei Start (bis zu 5000 möglich)
 - Euler-Integration
 - Ball-Ball-Kollision (elastischer Stoß)
 - Ball-Wand-Kollision (6 Würfelwände)
 - Gravitation (einstellbar)
 - **Grid-System**: O(n) Kollisionserkennung
-  - **1000 Bälle @ 36 FPS** mit Grid 8×8×8
-  - Ohne Grid: <1 FPS bei 1000 Bällen
+  - **5000 Bälle @ 24 FPS** auf Mac M3 (4-6cm, Calc-Faktor 1) 🚀
+  - **2000 Bälle @ 80 FPS** auf Mac M3 (5-7cm, Calc-Faktor 1, ~26.000 Checks)
+  - **100.000 Checks @ 27 FPS** erreicht (höhere Dichte/Calc-Faktor)
+  - Ohne Grid: <1 FPS bei 1000 Bällen (499.500 Checks!)
+  - **Performance-Grenze**: Jetzt **Grafik-Rendering** statt Kollisionsberechnung
+    - Bei SGI (1993): Grafik war Hauptbegrenzung
+    - Heute (2026): Grid-System so effizient, dass wieder Grafik limitiert!
 
 ✅ **3D-Rendering**
 - Three.js mit WebGL
 - Beleuchtete Kugeln (Phong-Shading)
+- **Silver Material**: Metallic Reflections mit HDR Environment Map (praktisch kein Performance-Overhead!)
 - Wireframe & Point-Modus
 - Transparente Würfelwände mit gelben Kanten
 - **3D-Stereo**: Anaglyph (Rot-Blau), Top-Bottom & **Side-by-Side (VR)**
-- 166 FPS @ 30 Bälle, 36 FPS @ 1000 Bälle (mit Grid)
+- **Rendering Performance** (Mac M3):
+  - 2000 Bälle gestoppt: ~120 FPS (Lighted & Silver vergleichbar)
+  - **5000 Bälle**: 49 FPS gestoppt, **24 FPS mit Simulation** 🎊
+  - **Verhältnis**: ~51% Performance für Physik, ~49% für Rendering
+- **Grafik-Performance**: Hauptlimitierung bei hohen Ballzahlen
 
 ✅ **Cross-Platform**
 - **Web**: iframe → webpack-gebaute App

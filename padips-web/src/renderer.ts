@@ -1028,7 +1028,7 @@ class PaDIPSApp {
    */
   private changeBallCount(delta: number): void {
     const currentCount = this.ballParams.count;
-    const newCount = Math.max(5, Math.min(1000, currentCount + delta));
+    const newCount = Math.max(5, Math.min(5000, currentCount + delta));
 
     if (newCount === currentCount) {
       console.log('⚠️ Ball count limit reached');

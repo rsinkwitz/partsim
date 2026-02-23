@@ -222,7 +222,7 @@ function BallCountControls({ ballCount, setBallCount, sendToWebView, isDarkMode 
   };
 
   const handlePlus = () => {
-    const newCount = Math.min(1000, ballCount + 50);
+    const newCount = Math.min(5000, ballCount + 50);
     setBallCount(newCount);
     sendToWebView('setBallCount', newCount);
     sendToWebView('new');
@@ -312,6 +312,8 @@ export function UnifiedMenuOverlay({
   // Stats
   fps,
   ballCount,
+  setBallCount,
+  actualBallCount, // Tatsächliche Anzahl im Modell
   generation,
   checks,
 
@@ -607,7 +609,7 @@ export function UnifiedMenuOverlay({
           {/* KOPF-BEREICH: Stats + Close Button */}
           <View style={styles.headerRow}>
             <View style={styles.statsWrapper}>
-              <StatsPanel fps={fps} ballCount={ballCount} generation={generation} checks={checks} isDarkMode={isDarkMode} />
+              <StatsPanel fps={fps} ballCount={actualBallCount} generation={generation} checks={checks} isDarkMode={isDarkMode} />
             </View>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
               <Text style={styles.closeButtonText}>✖</Text>
@@ -659,7 +661,7 @@ export function UnifiedMenuOverlay({
           />
 
           <BallCountControls
-            ballCount={ballCount}
+            ballCount={actualBallCount}
             setBallCount={() => {}} // Set via ±50 buttons only
             sendToWebView={sendToWebView}
             isDarkMode={isDarkMode}
@@ -678,17 +680,15 @@ export function UnifiedMenuOverlay({
             {/* Balls */}
             <View style={styles.sliderContainer}>
               <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Number of Balls: {ballCount}</Text>
-              <Text style={[styles.smallText, { color: dynamicStyles.footerText.color }]}>Use ±50 buttons above or slider below</Text>
               <Slider
                 style={styles.slider}
                 minimumValue={5}
-                maximumValue={1000}
+                maximumValue={5000}
                 step={5}
                 value={ballCount}
-                onValueChange={() => {}} // Read-only display, use ±50 buttons
+                onValueChange={setBallCount}
                 minimumTrackTintColor="#4CAF50"
                 maximumTrackTintColor="#ddd"
-                disabled={true}
               />
             </View>
 
