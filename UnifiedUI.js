@@ -327,15 +327,17 @@ function BallCountControls({ ballCount, setBallCount, sendToWebView, isDarkMode 
   const textColor = isDarkMode ? '#e0e0e0' : '#333';
   const bgColor = isDarkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)';
 
-  const handleMinus = () => {
-    const newCount = Math.max(5, ballCount - 50);
+  const handleHalve = () => {
+    // Halve ball count, round to nearest 5, minimum 5
+    const newCount = Math.max(5, Math.round((ballCount / 2) / 5) * 5);
     setBallCount(newCount);
     sendToWebView('setBallCount', newCount);
     sendToWebView('new');
   };
 
-  const handlePlus = () => {
-    const newCount = Math.min(5000, ballCount + 50);
+  const handleDouble = () => {
+    // Double ball count, round to nearest 5, maximum 10000
+    const newCount = Math.min(10000, Math.round((ballCount * 2) / 5) * 5);
     setBallCount(newCount);
     sendToWebView('setBallCount', newCount);
     sendToWebView('new');
@@ -345,11 +347,11 @@ function BallCountControls({ ballCount, setBallCount, sendToWebView, isDarkMode 
     <View style={[styles.ballCountControls, { backgroundColor: bgColor }]}>
       <Text style={[styles.ballCountLabel, { color: textColor }]}>🎱 Balls: {ballCount}</Text>
       <View style={styles.ballCountButtons}>
-        <TouchableOpacity style={styles.ballCountButton} onPress={handleMinus}>
-          <Text style={styles.ballCountButtonText}>-50</Text>
+        <TouchableOpacity style={styles.ballCountButton} onPress={handleHalve}>
+          <Text style={styles.ballCountButtonText}>½</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.ballCountButton} onPress={handlePlus}>
-          <Text style={styles.ballCountButtonText}>+50</Text>
+        <TouchableOpacity style={styles.ballCountButton} onPress={handleDouble}>
+          <Text style={styles.ballCountButtonText}>×2</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -472,6 +474,8 @@ export function UnifiedMenuOverlay({
   setCalcFactor,
   collisionsEnabled,
   setCollisionsEnabled,
+  globalElasticity,
+  setGlobalElasticity,
 
   // Rendering
   wireframeSegments,
@@ -729,7 +733,7 @@ export function UnifiedMenuOverlay({
             </TouchableOpacity>
           </View>
 
-          {/* Main Controls: Play/Pause, Apply, Reset */}
+          {/* Main Controls: Play/Pause, Apply, Reset, Fullscreen */}
           <View style={styles.mainControls}>
             <TooltipButton
               title={isRunning ? 'Pause' : 'Play'}
@@ -752,6 +756,43 @@ export function UnifiedMenuOverlay({
             >
               <Text style={styles.buttonText}>🔄</Text>
             </TooltipButton>
+            {Platform.OS === 'web' && (
+              <TooltipButton
+                title="Fullscreen"
+                style={styles.controlButton}
+                onPress={() => {
+                  // Request fullscreen on the document element
+                  const elem = document.documentElement;
+                  if (!document.fullscreenElement) {
+                    // Enter fullscreen
+                    if (elem.requestFullscreen) {
+                      elem.requestFullscreen();
+                    } else if (elem.webkitRequestFullscreen) { // Safari
+                      elem.webkitRequestFullscreen();
+                    } else if (elem.mozRequestFullScreen) { // Firefox
+                      elem.mozRequestFullScreen();
+                    } else if (elem.msRequestFullscreen) { // IE/Edge
+                      elem.msRequestFullscreen();
+                    }
+                    console.log('🖥️ Entering fullscreen');
+                  } else {
+                    // Exit fullscreen
+                    if (document.exitFullscreen) {
+                      document.exitFullscreen();
+                    } else if (document.webkitExitFullscreen) { // Safari
+                      document.webkitExitFullscreen();
+                    } else if (document.mozCancelFullScreen) { // Firefox
+                      document.mozCancelFullScreen();
+                    } else if (document.msExitFullscreen) { // IE/Edge
+                      document.msExitFullscreen();
+                    }
+                    console.log('🖥️ Exiting fullscreen');
+                  }
+                }}
+              >
+                <Text style={styles.buttonText}>⛶</Text>
+              </TooltipButton>
+            )}
           </View>
 
           <CompactToggles
@@ -790,19 +831,28 @@ export function UnifiedMenuOverlay({
           {/* KOLLABIERBARE SECTIONS */}
 
           <CollapsibleSection title="📦 Model" defaultOpen={false} isDarkMode={isDarkMode}>
-            {/* Balls */}
+            {/* Balls - Logarithmic Slider */}
             <View style={styles.sliderContainer}>
               <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Number of Balls: {ballCount}</Text>
               <Slider
                 style={styles.slider}
-                minimumValue={5}
-                maximumValue={5000}
-                step={5}
-                value={ballCount}
-                onValueChange={setBallCount}
+                minimumValue={Math.log(5)}      // log(5) ≈ 1.6
+                maximumValue={Math.log(10000)}  // log(10000) ≈ 9.2
+                step={0.01}                     // Small steps in log space for smooth control
+                value={Math.log(ballCount)}     // Convert current value to log
+                onValueChange={(logValue) => {
+                  // Convert log value back to linear, round to nearest 5
+                  const linearValue = Math.exp(logValue);
+                  const roundedValue = Math.round(linearValue / 5) * 5;
+                  const clampedValue = Math.max(5, Math.min(10000, roundedValue));
+                  setBallCount(clampedValue);
+                }}
                 minimumTrackTintColor="#4CAF50"
                 maximumTrackTintColor="#ddd"
               />
+              <Text style={[styles.smallText, { color: dynamicStyles.footerText.color }]}>
+                Logarithmic scale: 5 - 10,000 (fine control at low values)
+              </Text>
             </View>
 
             <View style={styles.sliderContainer}>
@@ -945,6 +995,42 @@ export function UnifiedMenuOverlay({
                   isDarkMode={isDarkMode}
                 />
               )}
+            </View>
+
+            {/* Gravity Magnitude Slider */}
+            <View style={styles.sliderContainer}>
+              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Gravity Magnitude: {gravityMagnitude.toFixed(2)} m/s²</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={0}
+                maximumValue={20}
+                step={0.1}
+                value={gravityMagnitude}
+                onValueChange={(val) => {
+                  setGravityMagnitude(val);
+                  sendToWebView('setGravityPreset', { preset: gravityPreset, magnitude: val });
+                }}
+                minimumTrackTintColor="#4CAF50"
+                maximumTrackTintColor="#ddd"
+              />
+            </View>
+
+            {/* Global Elasticity Slider */}
+            <View style={styles.sliderContainer}>
+              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Global Elasticity: {(globalElasticity / 100).toFixed(2)}</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={0}
+                maximumValue={100}
+                step={5}
+                value={globalElasticity}
+                onValueChange={(val) => {
+                  setGlobalElasticity(val);
+                  sendToWebView('setGlobalElasticity', val / 100);
+                }}
+                minimumTrackTintColor="#4CAF50"
+                maximumTrackTintColor="#ddd"
+              />
             </View>
           </CollapsibleSection>
 
@@ -1302,6 +1388,7 @@ const styles = StyleSheet.create({
   },
   menuContent: {
     padding: 12,
+    paddingBottom: Platform.OS === 'web' ? 12 : 40, // Extra space on mobile to avoid system icons
   },
 
   // Header Row (Stats + Close Button)

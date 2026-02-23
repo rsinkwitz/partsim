@@ -32,15 +32,16 @@ Cross-platform app (iOS, Android, Web) with Three.js WebView/iframe integration.
 ## 🎯 Features
 
 ✅ **Kern-Physik**
-- 30 Bälle bei Start (bis zu 5000 möglich)
+- 100 Bälle bei Start (bis zu 10.000 möglich mit logarithmischem Slider!)
 - Euler-Integration
 - Ball-Ball-Kollision (elastischer Stoß)
 - Ball-Wand-Kollision (6 Würfelwände)
 - Gravitation (einstellbar)
 - **Grid-System**: O(n) Kollisionserkennung
-  - **5000 Bälle @ 24 FPS** auf Mac M3 (4-6cm, Calc-Faktor 1) 🚀
+  - **140.000 Checks @ 20-25 FPS** auf Mac M3 (neuer Rekord!) 🔥
+  - **6400 Bälle @ 18 FPS** auf Mac M3 (4cm, Calc-Faktor 1)
+  - **5000 Bälle @ 24 FPS** auf Mac M3 (4-6cm, Calc-Faktor 1)
   - **2000 Bälle @ 80 FPS** auf Mac M3 (5-7cm, Calc-Faktor 1, ~26.000 Checks)
-  - **100.000 Checks @ 27 FPS** erreicht (höhere Dichte/Calc-Faktor)
   - Ohne Grid: <1 FPS bei 1000 Bällen (499.500 Checks!)
   - **Performance-Grenze**: Jetzt **Grafik-Rendering** statt Kollisionsberechnung
     - Bei SGI (1993): Grafik war Hauptbegrenzung
@@ -55,9 +56,12 @@ Cross-platform app (iOS, Android, Web) with Three.js WebView/iframe integration.
 - **3D-Stereo**: Anaglyph (Rot-Blau), Top-Bottom & **Side-by-Side (VR)**
 - **Rendering Performance** (Mac M3):
   - 2000 Bälle gestoppt: ~120 FPS (Lighted & Silver vergleichbar)
-  - **5000 Bälle**: 49 FPS gestoppt, **24 FPS mit Simulation** 🎊
-  - **Verhältnis**: ~51% Performance für Physik, ~49% für Rendering
+  - 5000 Bälle: 49 FPS gestoppt, **24 FPS mit Simulation** (51% Physik / 49% Rendering)
+  - **6400 Bälle: 30 FPS gestoppt, 18 FPS mit Simulation** (40% Physik / 60% Rendering)
+  - **140.000 Checks: 20 FPS (Lighted), 24-25 FPS (Wireframe)** - Wireframe 20-25% schneller! 🚀
+  - **Verhältnis verschiebt sich**: Bei hohen Ballzahlen wird Rendering dominanter
 - **Grafik-Performance**: Hauptlimitierung bei hohen Ballzahlen
+  - **Wireframe-Vorteil**: Kein Phong-Shading, nur Linien rendern → deutlich schneller bei extremen Szenarien
 
 ✅ **Cross-Platform**
 - **Web**: iframe → webpack-gebaute App

@@ -35,6 +35,7 @@ class PaDIPSApp {
   private lastFpsUpdate: number = 0;
   private currentFps: number = 0;
   private turnSpeed: number = 1; // Auto-rotation speed: 0=off, 1=1x, 2=2x, 3=3x, 4=4x
+  private gravityMagnitude: number = 9.81; // Current gravity magnitude (m/s²)
 
   // Track last sent values to avoid duplicate updates
   private lastSentState = {
@@ -258,6 +259,7 @@ class PaDIPSApp {
 
           // Physics
           case 'setGravityPreset':
+            this.gravityMagnitude = data.params.magnitude; // Store magnitude for toggleGravity
             this.global.setGravityPreset(data.params.preset, data.params.magnitude);
             console.log('🌍 Gravity preset:', data.params.preset, 'magnitude:', data.params.magnitude, 'm/s²');
             this.sendStateToParent();
@@ -1028,11 +1030,22 @@ class PaDIPSApp {
   }
 
   /**
-   * Change ball count by delta
+   * Change ball count by doubling or halving (for logarithmic control)
+   * delta > 0: double, delta < 0: halve
    */
   private changeBallCount(delta: number): void {
     const currentCount = this.ballParams.count;
-    const newCount = Math.max(5, Math.min(5000, currentCount + delta));
+    let newCount: number;
+
+    if (delta > 0) {
+      // Double the count
+      newCount = Math.round((currentCount * 2) / 5) * 5; // Round to nearest 5
+      newCount = Math.min(10000, newCount); // Cap at 10000
+    } else {
+      // Halve the count
+      newCount = Math.round((currentCount / 2) / 5) * 5; // Round to nearest 5
+      newCount = Math.max(5, newCount); // Minimum 5
+    }
 
     if (newCount === currentCount) {
       console.log('⚠️ Ball count limit reached');
@@ -1219,13 +1232,14 @@ class PaDIPSApp {
     const selectEl = document.getElementById('gravityPreset') as HTMLSelectElement;
     const magnitudeEl = document.getElementById('gravityMagnitude') as HTMLInputElement;
 
-    // If no HTML UI, just toggle between ZERO and DOWN with default magnitude
+    // If no HTML UI, just toggle between ZERO and DOWN with current magnitude
     if (!selectEl || !magnitudeEl) {
       const currentAccel = this.global.acceleration;
       const isZero = currentAccel.x === 0 && currentAccel.y === 0 && currentAccel.z === 0;
       const newPreset = isZero ? 'DOWN' : 'ZERO';
-      this.global.setGravityPreset(newPreset, 9.81);
-      console.log('🌍 Gravity toggled to:', newPreset, '(no HTML UI)');
+      // Use stored magnitude instead of hardcoded 9.81
+      this.global.setGravityPreset(newPreset, this.gravityMagnitude);
+      console.log('🌍 Gravity toggled to:', newPreset, 'magnitude:', this.gravityMagnitude);
       // Send state update to parent
       this.sendStateToParent();
       return;

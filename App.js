@@ -286,6 +286,38 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           return;
         }
 
+        // Fullscreen toggle (F11 or 'f')
+        if (event.key === 'F11' || event.key === 'f' || event.key === 'F') {
+          event.preventDefault();
+          const elem = document.documentElement;
+          if (!document.fullscreenElement) {
+            // Enter fullscreen
+            if (elem.requestFullscreen) {
+              elem.requestFullscreen();
+            } else if (elem.webkitRequestFullscreen) { // Safari
+              elem.webkitRequestFullscreen();
+            } else if (elem.mozRequestFullScreen) { // Firefox
+              elem.mozRequestFullScreen();
+            } else if (elem.msRequestFullscreen) { // IE/Edge
+              elem.msRequestFullscreen();
+            }
+            console.log('🖥️', event.key, ': Entering fullscreen');
+          } else {
+            // Exit fullscreen
+            if (document.exitFullscreen) {
+              document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) { // Safari
+              document.webkitExitFullscreen();
+            } else if (document.mozCancelFullScreen) { // Firefox
+              document.mozCancelFullScreen();
+            } else if (document.msExitFullscreen) { // IE/Edge
+              document.msExitFullscreen();
+            }
+            console.log('🖥️', event.key, ': Exiting fullscreen');
+          }
+          return;
+        }
+
         // Check if iframe is loaded and has contentWindow
         if (webViewRef.current && webViewRef.current.contentWindow) {
           // Forward the keyboard event to the iframe
@@ -307,7 +339,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           }), '*');
 
           // Prevent default for known shortcuts (updated list)
-          const shortcuts = ['s', 'a', 'r', 'y', '3', 'd', 't', 'w', 'p', 'g', 'x', 'i', 'v', 'c', 'F1'];
+          const shortcuts = ['s', 'a', 'r', 'y', '3', 'd', 't', 'w', 'p', 'g', 'x', 'i', 'v', 'c', 'f', 'F', 'F1', 'F11'];
           if (shortcuts.includes(event.key) ||
               event.key === '+' || event.key === '-' ||
               event.key === 'j' || event.key === 'k' ||
@@ -496,6 +528,8 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
     setMaxVelocity(2.0);
     setElasticity(90);
     setGravityPreset('ZERO');
+    setGravityMagnitude(9.81); // Reset to Earth gravity
+    setGlobalElasticity(90); // Reset to 90%
     setCalcFactor(10);
     setCollisionsEnabled(true);
     setGridEnabled(false);
@@ -508,7 +542,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
     setStereoMode('off');
     setEyeSeparation(8);
     setCubeDepth(0);
-    setTurnSpeed(0);
+    setTurnSpeed(1); // Reset to 1x rotation
 
     // Send default values to WebView
     sendToWebView('setBallCount', 100);
@@ -517,6 +551,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
     sendToWebView('setMaxVelocity', 2.0);
     sendToWebView('setElasticity', 0.9);
     sendToWebView('setGravityPreset', { preset: 'ZERO', magnitude: 9.81 });
+    sendToWebView('setGlobalElasticity', 0.9); // Reset global elasticity
     sendToWebView('setCalcFactor', 10);
     sendToWebView('setCollisionsEnabled', true);
     sendToWebView('disableGrid');
@@ -528,7 +563,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
     sendToWebView('setStereoMode', 'off');
     sendToWebView('setEyeSeparation', 0.08);
     sendToWebView('setCubeDepth', 0);
-    sendToWebView('setAutoRotation', { enabled: false });
+    sendToWebView('setAutoRotation', { enabled: true, speed: 1 }); // Reset to 1x rotation
 
     // Generate new balls with default parameters
     sendToWebView('new');
@@ -915,6 +950,8 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
         setMaxVelocity={setMaxVelocity}
         elasticity={elasticity}
         setElasticity={setElasticity}
+        globalElasticity={globalElasticity}
+        setGlobalElasticity={setGlobalElasticity}
         calcFactor={calcFactor}
         setCalcFactor={setCalcFactor}
         collisionsEnabled={collisionsEnabled}
