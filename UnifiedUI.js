@@ -167,12 +167,16 @@ function StatsPanel({ fps, ballCount, generation, checks, isDarkMode = false }) 
   return (
     <View style={styles.statsContainer}>
       <View style={styles.statsRow}>
-        <Text style={[styles.statText, { color: textColor }]}>FPS: {fps}</Text>
-        <Text style={[styles.statText, { color: textColor }]}>Balls: {ballCount}</Text>
+        <Text style={[styles.statLabel, { color: textColor }]}>FPS:</Text>
+        <Text style={[styles.statValue, { color: textColor }]}>{fps}</Text>
+        <Text style={[styles.statLabel, { color: textColor }]}>Balls:</Text>
+        <Text style={[styles.statValue, { color: textColor }]}>{ballCount}</Text>
       </View>
       <View style={styles.statsRow}>
-        <Text style={[styles.statText, { color: textColor }]}>Gen: {generation}</Text>
-        <Text style={[styles.statText, { color: textColor }]}>Checks: {checks}</Text>
+        <Text style={[styles.statLabel, { color: textColor }]}>Gen:</Text>
+        <Text style={[styles.statValue, { color: textColor }]}>{generation}</Text>
+        <Text style={[styles.statLabel, { color: textColor }]}>Checks:</Text>
+        <Text style={[styles.statValue, { color: textColor }]}>{checks.toLocaleString()}</Text>
       </View>
     </View>
   );
@@ -883,37 +887,33 @@ export function UnifiedMenuOverlay({
               />
             </View>
 
-            {Platform.OS === 'web' && (
-              <>
-                <View style={styles.sliderContainer}>
-                  <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Max Velocity: {maxVelocity.toFixed(1)} m/s</Text>
-                  <Slider
-                    style={styles.slider}
-                    minimumValue={0.5}
-                    maximumValue={10.0}
-                    step={0.5}
-                    value={maxVelocity}
-                    onValueChange={setMaxVelocity}
-                    minimumTrackTintColor="#4CAF50"
-                    maximumTrackTintColor="#ddd"
-                  />
-                </View>
+            <View style={styles.sliderContainer}>
+              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Max Velocity: {maxVelocity.toFixed(1)} m/s</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={0.5}
+                maximumValue={10.0}
+                step={0.5}
+                value={maxVelocity}
+                onValueChange={setMaxVelocity}
+                minimumTrackTintColor="#4CAF50"
+                maximumTrackTintColor="#ddd"
+              />
+            </View>
 
-                <View style={styles.sliderContainer}>
-                  <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Elasticity: {(elasticity / 100).toFixed(2)}</Text>
-                  <Slider
-                    style={styles.slider}
-                    minimumValue={0}
-                    maximumValue={100}
-                    step={5}
-                    value={elasticity}
-                    onValueChange={setElasticity}
-                    minimumTrackTintColor="#4CAF50"
-                    maximumTrackTintColor="#ddd"
-                  />
-                </View>
-              </>
-            )}
+            <View style={styles.sliderContainer}>
+              <Text style={[styles.label, { color: dynamicStyles.text.color }]}>Elasticity: {(elasticity / 100).toFixed(2)}</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={0}
+                maximumValue={100}
+                step={5}
+                value={elasticity}
+                onValueChange={setElasticity}
+                minimumTrackTintColor="#4CAF50"
+                maximumTrackTintColor="#ddd"
+              />
+            </View>
 
             <TouchableOpacity style={styles.applyButton} onPress={handleApply}>
               <Text style={styles.applyButtonText}>✨ Apply</Text>
@@ -938,63 +938,25 @@ export function UnifiedMenuOverlay({
             {/* Gravity - Full Picker (like Draw Mode) */}
             <View style={styles.pickerContainer}>
               <Text style={[styles.label, { color: dynamicStyles.text.color }]}>🌍 Gravity Direction</Text>
-              {Platform.OS === 'web' ? (
-                <select
-                  value={gravityPreset}
-                  onChange={(e) => {
-                    const preset = e.target.value;
-                    console.log('📝 Gravity Combo onChange (web):');
-                    console.log('  preset:', preset);
-                    console.log('  current gravityPreset:', gravityPreset);
-
-                    // FIRST: Set state directly
-                    setGravityPreset(preset);
-                    sendToWebView('setGravityPreset', { preset, magnitude: gravityMagnitude });
-
-                    // THEN: Notify CrossUpdate so Toggle can update
-                    console.log('  → notifying crossUpdate (for Toggle)');
-                    crossUpdate.notify('detail-gravity', preset);
-                  }}
-                  style={{
-                    padding: '8px',
-                    borderRadius: '4px',
-                    border: isDarkMode ? '1px solid #555' : '1px solid #ddd',
-                    backgroundColor: isDarkMode ? '#2a2a2a' : 'white',
-                    color: isDarkMode ? '#e0e0e0' : '#333',
-                    fontSize: '13px',
-                    width: '100%',
-                    marginTop: '4px'
-                  }}
-                >
-                  <option value="ZERO">🚫 Zero</option>
-                  <option value="DOWN">⬇️ Down</option>
-                  <option value="UP">⬆️ Up</option>
-                  <option value="LEFT">⬅️ Left</option>
-                  <option value="RIGHT">➡️ Right</option>
-                  <option value="FRONT">🔽 Front</option>
-                  <option value="REAR">🔼 Rear</option>
-                </select>
-              ) : (
-                <DropdownPicker
-                  value={gravityPreset}
-                  options={[
-                    { value: 'ZERO', label: '🚫 Zero' },
-                    { value: 'DOWN', label: '⬇️ Down' },
-                    { value: 'UP', label: '⬆️ Up' },
-                    { value: 'LEFT', label: '⬅️ Left' },
-                    { value: 'RIGHT', label: '➡️ Right' },
-                    { value: 'FRONT', label: '🔽 Front' },
-                    { value: 'REAR', label: '🔼 Rear' }
-                  ]}
-                  onChange={(preset) => {
-                    console.log('📝 Gravity Dropdown onChange (mobile):', preset);
-                    setGravityPreset(preset);
-                    sendToWebView('setGravityPreset', { preset, magnitude: gravityMagnitude });
-                    crossUpdate.notify('detail-gravity', preset);
-                  }}
-                  isDarkMode={isDarkMode}
-                />
-              )}
+              <DropdownPicker
+                value={gravityPreset}
+                options={[
+                  { value: 'ZERO', label: '🚫 Zero' },
+                  { value: 'DOWN', label: '⬇️ Down' },
+                  { value: 'UP', label: '⬆️ Up' },
+                  { value: 'LEFT', label: '⬅️ Left' },
+                  { value: 'RIGHT', label: '➡️ Right' },
+                  { value: 'FRONT', label: '🔽 Front' },
+                  { value: 'REAR', label: '🔼 Rear' }
+                ]}
+                onChange={(preset) => {
+                  console.log('📝 Gravity Picker onChange:', preset);
+                  setGravityPreset(preset);
+                  sendToWebView('setGravityPreset', { preset, magnitude: gravityMagnitude });
+                  crossUpdate.notify('detail-gravity', preset);
+                }}
+                isDarkMode={isDarkMode}
+              />
             </View>
 
             {/* Gravity Magnitude Slider */}
@@ -1054,63 +1016,28 @@ export function UnifiedMenuOverlay({
             {/* Draw Mode - Full Picker */}
             <View style={styles.pickerContainer}>
               <Text style={[styles.label, { color: dynamicStyles.text.color }]}>🎨 Draw Mode</Text>
-              {Platform.OS === 'web' ? (
-                <select
-                  value={drawMode}
-                  onChange={(e) => {
-                    const newMode = e.target.value;
-                    console.log('📝 Combo onChange (web):');
-                    console.log('  newMode:', newMode);
-                    console.log('  current drawMode:', drawMode);
-
-                    // FIRST: Set state directly (not via CrossUpdate!)
-                    setDrawMode(newMode);
-                    sendToWebView('setDrawMode', newMode);
-
-                    // THEN: Notify CrossUpdate so Toggle can update
-                    console.log('  → notifying crossUpdate (for Toggle)');
-                    crossUpdate.notify('detail-drawmode', newMode);
-                  }}
-                  style={{
-                    padding: '8px',
-                    borderRadius: '4px',
-                    border: isDarkMode ? '1px solid #555' : '1px solid #ddd',
-                    backgroundColor: isDarkMode ? '#2a2a2a' : 'white',
-                    color: isDarkMode ? '#e0e0e0' : '#333',
-                    fontSize: '13px',
-                    width: '100%',
-                    marginTop: '4px'
-                  }}
-                >
-                  <option value="LIGHTED">Lighted</option>
-                  <option value="WIREFRAME">Wireframe</option>
-                  <option value="POINTS">Points</option>
-                  <option value="SILVER">Silver</option>
-                </select>
-              ) : (
-                <DropdownPicker
-                  value={drawMode}
-                  options={[
-                    { value: 'LIGHTED', label: 'Lighted' },
-                    { value: 'WIREFRAME', label: 'Wireframe' },
-                    { value: 'POINTS', label: 'Points' },
-                    { value: 'SILVER', label: 'Silver' },
-                  ]}
-                  onChange={(newMode) => {
-                    console.log('📝 Dropdown onChange (mobile):', newMode);
-                    setDrawMode(newMode);
-                    sendToWebView('setDrawMode', newMode);
-                    crossUpdate.notify('detail-drawmode', newMode);
-                  }}
-                  getIcon={(mode) =>
-                    mode === 'LIGHTED' ? '💡' :
-                    mode === 'WIREFRAME' ? '🕸️' :
-                    mode === 'POINTS' ? '⚫' : '✨'
-                  }
-                  getLabel={(mode) => mode.charAt(0) + mode.slice(1).toLowerCase()}
-                  isDarkMode={isDarkMode}
-                />
-              )}
+              <DropdownPicker
+                value={drawMode}
+                options={[
+                  { value: 'LIGHTED', label: 'Lighted' },
+                  { value: 'WIREFRAME', label: 'Wireframe' },
+                  { value: 'POINTS', label: 'Points' },
+                  { value: 'SILVER', label: 'Silver' },
+                ]}
+                onChange={(newMode) => {
+                  console.log('📝 Draw Mode Picker onChange:', newMode);
+                  setDrawMode(newMode);
+                  sendToWebView('setDrawMode', newMode);
+                  crossUpdate.notify('detail-drawmode', newMode);
+                }}
+                getIcon={(mode) =>
+                  mode === 'LIGHTED' ? '💡' :
+                  mode === 'WIREFRAME' ? '🕸️' :
+                  mode === 'POINTS' ? '⚫' : '✨'
+                }
+                getLabel={(mode) => mode.charAt(0) + mode.slice(1).toLowerCase()}
+                isDarkMode={isDarkMode}
+              />
             </View>
 
             <View style={styles.sliderContainer}>
@@ -1446,12 +1373,21 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 1, // Kompakter: 2 → 1
   },
-  statText: {
+  statLabel: {
     color: '#333', // Light mode
     fontSize: 12,
-    flex: 1,
+    width: 50, // Feste Breite für Labels (schmaler)
+    textAlign: 'right',
+    marginRight: 4,
+  },
+  statValue: {
+    color: '#333', // Light mode
+    fontSize: 12,
+    flex: 1, // Nimmt restlichen Platz für große Zahlen
+    textAlign: 'left',
   },
 
   // Main Controls

@@ -75,7 +75,7 @@ export function generateBalls(params: BallGenerationParams): BallSet {
  * Default ball generation parameters
  */
 export const DEFAULT_BALL_PARAMS: BallGenerationParams = {
-  count: 100,  // Initial number of balls (changed from 30)
+  count: 80,  // Initial number of balls (nice for halving: 80→40→20→10→5)
   minRadius: 0.05,
   maxRadius: 0.15,
   maxVelocity: 2.0,

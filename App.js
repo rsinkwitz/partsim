@@ -80,7 +80,7 @@ const PersistentWebView = React.memo(({ webAppUri, webViewRef, injectedJavaScrip
 
 function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setError, webViewRef }) {
   // UI State - Balls
-  const [ballCount, setBallCount] = useState(100);
+  const [ballCount, setBallCount] = useState(80);
   const [minRadius, setMinRadius] = useState(5); // in cm (stored as slider value)
   const [maxRadius, setMaxRadius] = useState(15); // in cm (stored as slider value)
   const [maxVelocity, setMaxVelocity] = useState(2.0);
@@ -133,7 +133,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
 
   // Stats from WebView
   const [fps, setFps] = useState(0);
-  const [actualBallCount, setActualBallCount] = useState(100);
+  const [actualBallCount, setActualBallCount] = useState(80);
   const [generation, setGeneration] = useState(0);
   const [isRunning, setIsRunning] = useState(true);
   const [checks, setChecks] = useState(0);
@@ -247,6 +247,10 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
             // Reset requested from WebView (e.g., via keyboard shortcut [R])
             console.log('🔄 Reset requested from WebView');
             handleReset();
+          } else if (data.type === 'menuToggleRequest') {
+            // Menu toggle requested from WebView (e.g., via keyboard shortcut [M] or [F10])
+            console.log('📱 Menu toggle requested from WebView');
+            setShowMenu(prev => !prev);
           }
         } catch (e) {
           // Ignore non-JSON messages
@@ -278,13 +282,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           }
         }
 
-        // Menu toggle shortcuts ('M' or 'F10')
-        if (event.key === 'm' || event.key === 'M' || event.key === 'F10') {
-          setShowMenu(prev => !prev);
-          event.preventDefault();
-          console.log('⌨️ Menu toggled via keyboard:', event.key);
-          return;
-        }
+        // M and F10 are now handled in WebView and sent via menuToggleRequest message
 
         // Fullscreen toggle (F11 or 'f')
         if (event.key === 'F11' || event.key === 'f' || event.key === 'F') {
@@ -339,7 +337,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           }), '*');
 
           // Prevent default for known shortcuts (updated list)
-          const shortcuts = ['s', 'a', 'r', 'y', '3', 'd', 't', 'w', 'p', 'g', 'x', 'i', 'v', 'c', 'f', 'F', 'F1', 'F11'];
+          const shortcuts = ['s', 'a', 'r', 'y', '3', 'd', 't', 'w', 'p', 'g', 'x', 'i', 'v', 'c', 'f', 'F', 'F1', 'F10', 'F11', 'm', 'M'];
           if (shortcuts.includes(event.key) ||
               event.key === '+' || event.key === '-' ||
               event.key === 'j' || event.key === 'k' ||
@@ -522,7 +520,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
     console.log('🔄 Reset to defaults');
 
     // Reset all UI state to defaults
-    setBallCount(100);
+    setBallCount(80);
     setMinRadius(5);
     setMaxRadius(15);
     setMaxVelocity(2.0);
@@ -545,7 +543,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
     setTurnSpeed(1); // Reset to 1x rotation
 
     // Send default values to WebView
-    sendToWebView('setBallCount', 100);
+    sendToWebView('setBallCount', 80);
     sendToWebView('setMinRadius', 0.05); // 5cm in meters
     sendToWebView('setMaxRadius', 0.15); // 15cm in meters
     sendToWebView('setMaxVelocity', 2.0);
@@ -565,8 +563,8 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
     sendToWebView('setCubeDepth', 0);
     sendToWebView('setAutoRotation', { enabled: true, speed: 1 }); // Reset to 1x rotation
 
-    // Generate new balls with default parameters
-    sendToWebView('new');
+    // Full reset with camera reset
+    sendToWebView('reset');
   };
 
   // Handle messages from WebView

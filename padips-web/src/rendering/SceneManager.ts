@@ -939,10 +939,18 @@ export class SceneManager {
 
   /**
    * Reset camera to initial position and zoom
+   * PRESERVES current cube depth setting!
    */
   resetCamera(): void {
-    // Reset camera position to initial - use stored initialZ (platform-specific)
-    this.camera.position.set(0, 0, this.initialZ);
+    // Calculate current depth in meters
+    const currentDepth = this.currentCubeDepth * 0.1; // Convert slider units to meters
+
+    // Calculate camera Z position with current cube depth applied
+    // initialZ is the base distance, cubeDepth adjusts it
+    const adjustedZ = this.initialZ - currentDepth;
+
+    // Reset camera position to initial WITH current cube depth
+    this.camera.position.set(0, 0, adjustedZ);
 
     // Reset controls target to origin
     this.controls.target.set(0, 0, 0);
@@ -964,7 +972,7 @@ export class SceneManager {
     this.camera.updateProjectionMatrix();
     this.controls.update();
 
-    console.log('📷 Camera reset: position=(0,0,' + this.initialZ.toFixed(1) + '), FOV=', this.camera.fov.toFixed(1));
+    console.log('📷 Camera reset: position=(0,0,' + adjustedZ.toFixed(1) + '), FOV=', this.camera.fov.toFixed(1), 'cubeDepth=' + currentDepth.toFixed(2) + 'm');
   }
 
   /**

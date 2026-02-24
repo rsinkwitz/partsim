@@ -231,7 +231,11 @@ class PaDIPSApp {
             this.stop();
             break;
           case 'new':
+            // Apply: Generate new balls WITHOUT camera reset
+            this.newBalls();
+            break;
           case 'reset':
+            // Full reset: new balls + camera reset
             this.reset();
             break;
 
@@ -865,9 +869,9 @@ class PaDIPSApp {
 
         case 'a':
         case 'A':
-          // Apply (was "New" with 'n')
-          this.reset();
-          console.log('⌨️ [A] Apply - New simulation');
+          // Apply - generate new balls without camera reset
+          this.newBalls();
+          console.log('⌨️ [A] Apply - New balls generated');
           break;
 
         case 'r':
@@ -875,6 +879,14 @@ class PaDIPSApp {
           // Reset to defaults - send message to parent UI to trigger full reset
           this.sendResetRequest();
           console.log('⌨️ [R] Reset to defaults requested');
+          break;
+
+        case 'm':
+        case 'M':
+        case 'F10':
+          // Menu toggle - send message to parent UI
+          this.sendMenuToggleRequest();
+          console.log('⌨️ [M/F10] Menu toggle requested');
           break;
 
         case '3':
@@ -1593,6 +1605,27 @@ class PaDIPSApp {
   }
 
   /**
+   * Send menu toggle request to parent UI (triggered by 'M' or 'F10' key)
+   */
+  private sendMenuToggleRequest(): void {
+    const message = {
+      type: 'menuToggleRequest',
+    };
+
+    console.log('📱 Sending menu toggle request to UI');
+
+    // For iframe (Web)
+    if (window.parent !== window) {
+      window.parent.postMessage(JSON.stringify(message), '*');
+    }
+
+    // For React Native WebView
+    if ((window as any).ReactNativeWebView) {
+      (window as any).ReactNativeWebView.postMessage(JSON.stringify(message));
+    }
+  }
+
+  /**
    * Start simulation (Animation-Loop läuft bereits immer)
    */
   start(): void {
@@ -1641,10 +1674,11 @@ class PaDIPSApp {
   }
 
   /**
-   * Reset simulation
+   * Generate new balls with current parameters (Apply button)
+   * Does NOT reset camera or other view settings - only regenerates balls
    */
-  reset(): void {
-    console.log('🔄 Reset called');
+  newBalls(): void {
+    console.log('🆕 New balls called (Apply)');
     const wasRunning = this.isRunning;
     this.stop();
 
@@ -1707,8 +1741,7 @@ class PaDIPSApp {
     this.sceneManager.initializeScene(this.ballSet, this.walls);
     console.log('✅ initializeScene complete');
 
-    // Reset camera to initial position and zoom
-    this.sceneManager.resetCamera();
+    // DO NOT reset camera - preserve user's view position/rotation/zoom
 
     // Force initial render to show balls immediately
     this.sceneManager.render();
@@ -1717,7 +1750,7 @@ class PaDIPSApp {
     // Update stats
     this.updateStats();
 
-    console.log('🔄 Simulation reset with', this.ballSet.num, 'balls, wasRunning:', wasRunning);
+    console.log('🆕 New balls generated with', this.ballSet.num, 'balls, wasRunning:', wasRunning);
 
     if (wasRunning) {
       console.log('▶ Auto-restarting simulation');
@@ -1731,6 +1764,19 @@ class PaDIPSApp {
     if (parametersAdjusted) {
       this.sendBallParameterUpdate();
     }
+  }
+
+  /**
+   * Full reset: new balls + camera reset + view reset (Reset button)
+   */
+  reset(): void {
+    console.log('🔄 Full reset called (Reset button)');
+
+    // First generate new balls (same as newBalls())
+    this.newBalls();
+    // Then reset camera and view
+    this.sceneManager.resetCamera();
+    console.log('📷 Camera reset to initial position');
   }
 
   /**

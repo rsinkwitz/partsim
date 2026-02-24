@@ -14,12 +14,16 @@ export function StatsPanel({ fps, ballCount, generation, checks }) {
   return (
     <View style={styles.statsContainer}>
       <View style={styles.statsRow}>
-        <Text style={styles.statText}>FPS: {fps}</Text>
-        <Text style={styles.statText}>Balls: {ballCount}</Text>
+        <Text style={styles.statLabel}>FPS:</Text>
+        <Text style={styles.statValue}>{fps}</Text>
+        <Text style={styles.statLabel}>Balls:</Text>
+        <Text style={styles.statValue}>{ballCount}</Text>
       </View>
       <View style={styles.statsRow}>
-        <Text style={styles.statText}>Gen: {generation}</Text>
-        <Text style={styles.statText}>Checks: {checks}</Text>
+        <Text style={styles.statLabel}>Gen:</Text>
+        <Text style={styles.statValue}>{generation}</Text>
+        <Text style={styles.statLabel}>Checks:</Text>
+        <Text style={styles.statValue}>{checks.toLocaleString()}</Text>
       </View>
     </View>
   );
@@ -145,12 +149,21 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 2,
   },
-  statText: {
+  statLabel: {
     fontSize: 12,
     color: '#666',
-    flex: 1,
+    width: 50, // Feste Breite für Labels (schmaler)
+    textAlign: 'right',
+    marginRight: 4,
+  },
+  statValue: {
+    fontSize: 12,
+    color: '#666',
+    flex: 1, // Nimmt restlichen Platz für große Zahlen
+    textAlign: 'left',
   },
 
   // Main Controls
