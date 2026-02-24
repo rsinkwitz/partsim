@@ -340,7 +340,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           }), '*');
 
           // Prevent default for known shortcuts (updated list)
-          const shortcuts = ['s', 'a', 'r', 'y', '3', 'd', 't', 'w', 'p', 'g', 'x', 'i', 'v', 'o', 'O', 'c', 'f', 'F', 'F1', 'F10', 'F11', 'm', 'M'];
+          const shortcuts = ['s', 'a', 'r', 'y', '3', 'd', 't', 'w', 'p', 'g', 'x', 'i', 'v', 'o', 'O', 'c', 'f', 'F', 'F1', 'F2', 'F10', 'F11', 'm', 'M'];
           if (shortcuts.includes(event.key) ||
               event.key === '+' || event.key === '-' ||
               event.key === 'j' || event.key === 'k' ||

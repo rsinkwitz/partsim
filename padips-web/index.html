@@ -30,6 +30,42 @@
         height: 100%;
       }
 
+      /* Stats Overlay (F2) - Game-style HUD */
+      #statsOverlay {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background: rgba(0, 0, 0, 0.6);
+        color: #4CAF50;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-family: 'Courier New', monospace;
+        line-height: 1.6;
+        z-index: 100;
+        display: none;
+        pointer-events: none; /* Click-through */
+        user-select: none;
+      }
+
+      #statsOverlay.visible {
+        display: block;
+      }
+
+      #statsOverlay .stat-line {
+        margin: 2px 0;
+      }
+
+      #statsOverlay .stat-label {
+        color: #888;
+        margin-right: 6px;
+      }
+
+      #statsOverlay .stat-value {
+        color: #4CAF50;
+        font-weight: bold;
+      }
+
       /* Keyboard Help Overlay - matches menu styling */
       #keyHelp {
         position: absolute;
@@ -128,6 +164,26 @@
     <div id="app">
       <canvas id="canvas"></canvas>
 
+      <!-- Stats Overlay (F2 to toggle) -->
+      <div id="statsOverlay">
+        <div class="stat-line">
+          <span class="stat-label">FPS:</span>
+          <span class="stat-value" id="statFps">0</span>
+        </div>
+        <div class="stat-line">
+          <span class="stat-label">Balls:</span>
+          <span class="stat-value" id="statBalls">0</span>
+        </div>
+        <div class="stat-line">
+          <span class="stat-label">Gen:</span>
+          <span class="stat-value" id="statGen">0</span>
+        </div>
+        <div class="stat-line">
+          <span class="stat-label">Checks:</span>
+          <span class="stat-value" id="statChecks">0</span>
+        </div>
+      </div>
+
       <!-- KeyHelp bleibt für Keyboard-Shortcuts (F1) -->
       <div id="keyHelp">
         <h2>⌨️ Keyboard Shortcuts</h2>
@@ -184,6 +240,7 @@
         <div class="key-section">
           <h3>Help</h3>
           <div class="key-line"><kbd>F1</kbd> Toggle this help (close)</div>
+          <div class="key-line"><kbd>F2</kbd> Toggle Stats Overlay (HUD)</div>
         </div>
       </div>
     </div>

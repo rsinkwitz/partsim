@@ -991,6 +991,13 @@ class PaDIPSApp {
           this.toggleKeyHelp();
           console.log('⌨️ [F1] Key help toggled');
           break;
+
+        case 'f2':
+          // Toggle stats overlay
+          e.preventDefault();
+          this.toggleStatsOverlay();
+          console.log('⌨️ [F2] Stats overlay toggled');
+          break;
       }
     });
 
@@ -1432,6 +1439,18 @@ class PaDIPSApp {
       // Check computed style (includes CSS), not just inline style
       const isVisible = window.getComputedStyle(helpDiv).display !== 'none';
       helpDiv.style.display = isVisible ? 'none' : 'block';
+    }
+  }
+
+  /**
+   * Toggle stats overlay (F2) - Game-style HUD
+   */
+  private toggleStatsOverlay(): void {
+    const statsDiv = document.getElementById('statsOverlay');
+    if (statsDiv) {
+      statsDiv.classList.toggle('visible');
+      const isVisible = statsDiv.classList.contains('visible');
+      console.log('📊 Stats overlay:', isVisible ? 'ON' : 'OFF');
     }
   }
 
@@ -1910,6 +1929,17 @@ class PaDIPSApp {
     if (checksEl) checksEl.textContent = this.physicsEngine.stats.numChecks.toString();
     if (collisionsEl) collisionsEl.textContent = this.physicsEngine.stats.numCollisions.toString();
     if (calcTimeEl) calcTimeEl.textContent = this.physicsEngine.stats.calcTime.toFixed(2);
+
+    // Update stats overlay (F2) - Game-style HUD
+    const statFpsEl = document.getElementById('statFps');
+    const statBallsEl = document.getElementById('statBalls');
+    const statGenEl = document.getElementById('statGen');
+    const statChecksEl = document.getElementById('statChecks');
+
+    if (statFpsEl) statFpsEl.textContent = this.currentFps.toString();
+    if (statBallsEl) statBallsEl.textContent = this.ballSet.num.toString();
+    if (statGenEl) statGenEl.textContent = this.ballSet.generation.toString();
+    if (statChecksEl) statChecksEl.textContent = this.physicsEngine.stats.numChecks.toLocaleString();
   }
 
   /**
