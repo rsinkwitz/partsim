@@ -948,6 +948,13 @@ class PaDIPSApp {
           console.log('⌨️ [V] Voxels toggled');
           break;
 
+        case 'o':
+        case 'O':
+          // Toggle show world grid
+          this.toggleShowWorldGrid();
+          console.log('⌨️ [O] World grid toggled');
+          break;
+
         case 'c':
           // Toggle show collision checks
           this.toggleShowCollisionChecks();
@@ -1318,6 +1325,32 @@ class PaDIPSApp {
   }
 
   /**
+   * Toggle show world grid
+   */
+  private toggleShowWorldGrid(): void {
+    // No HTML UI in React Native - toggle internal state directly
+    this.visualizationState.showWorldGrid = !this.visualizationState.showWorldGrid;
+    const newState = this.visualizationState.showWorldGrid;
+
+    console.log('🌐 Show World Grid toggled to:', newState);
+
+    // If grid doesn't exist yet, create it first
+    if (newState && !this.sceneManager.hasGridVisualization()) {
+      const CBR = 1.518;
+      const origin = new THREE.Vector3(-CBR, -CBR, -CBR);
+      const extent = new THREE.Vector3(CBR, CBR, CBR);
+      this.sceneManager.createGridVisualization(this.visualizationState.gridSegments, origin, extent);
+      console.log('🔲 Grid visualization created for toggle');
+    }
+
+    // Update visualization
+    this.sceneManager.setShowGrid(newState);
+
+    // Send state update to parent so UI controls update
+    this.sendStateToParent();
+  }
+
+  /**
    * Toggle show collision checks
    */
   private toggleShowCollisionChecks(): void {
@@ -1457,6 +1490,7 @@ class PaDIPSApp {
       gravityPreset: gravityPreset,
       // Grid & Visualization states (for keyboard shortcut feedback)
       gridEnabled: this.visualizationState.gridEnabled,
+      showWorldGrid: this.visualizationState.showWorldGrid,
       showOccupiedVoxels: this.visualizationState.showOccupiedVoxels,
       showCollisionChecks: this.visualizationState.showCollisionChecks,
       // NOTE: turnSpeed is NOT included in regular updates

@@ -206,9 +206,12 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
               setGravityPreset(data.gravityPreset);
             }
 
-            // Update grid/visualization states if changed (e.g., via keyboard shortcuts [I][V][C])
+            // Update grid/visualization states if changed (e.g., via keyboard shortcuts [I][V][O][C])
             if (data.gridEnabled !== undefined) {
               setGridEnabled(data.gridEnabled);
+            }
+            if (data.showWorldGrid !== undefined) {
+              setShowWorldGrid(data.showWorldGrid);
             }
             if (data.showOccupiedVoxels !== undefined) {
               setShowOccupiedVoxels(data.showOccupiedVoxels);
@@ -337,7 +340,7 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           }), '*');
 
           // Prevent default for known shortcuts (updated list)
-          const shortcuts = ['s', 'a', 'r', 'y', '3', 'd', 't', 'w', 'p', 'g', 'x', 'i', 'v', 'c', 'f', 'F', 'F1', 'F10', 'F11', 'm', 'M'];
+          const shortcuts = ['s', 'a', 'r', 'y', '3', 'd', 't', 'w', 'p', 'g', 'x', 'i', 'v', 'o', 'O', 'c', 'f', 'F', 'F1', 'F10', 'F11', 'm', 'M'];
           if (shortcuts.includes(event.key) ||
               event.key === '+' || event.key === '-' ||
               event.key === 'j' || event.key === 'k' ||
