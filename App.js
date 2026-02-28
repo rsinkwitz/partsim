@@ -5,7 +5,7 @@ import { SafeAreaView, SafeAreaProvider } from "react-native-safe-area-context";
 import * as FileSystem from "expo-file-system/legacy";
 import { Asset } from "expo-asset";
 import Slider from '@react-native-community/slider';
-import { UnifiedMenuOverlay, TapZones } from './UnifiedUI';
+import { UnifiedMenuOverlay, TapZones, StatsTapZone, StatsOverlay } from './UnifiedUI';
 
 export default function App() {
   const [webAppUri, setWebAppUri] = useState(null);
@@ -137,6 +137,9 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
   const [generation, setGeneration] = useState(0);
   const [isRunning, setIsRunning] = useState(true);
   const [checks, setChecks] = useState(0);
+
+  // Mobile Stats Overlay (tap zone top-left, like F2 on Web)
+  const [showStatsOverlay, setShowStatsOverlay] = useState(false);
 
   useEffect(() => {
     loadWebApp();
@@ -892,6 +895,18 @@ function AppContent({ webAppUri, setWebAppUri, loading, setLoading, error, setEr
           onMessage={handleWebViewMessage}
         />
       </View>
+
+      {/* Stats Overlay - Tap Zone (Web + Mobile) */}
+      <StatsTapZone onToggle={() => setShowStatsOverlay(prev => !prev)} />
+      <StatsOverlay
+        visible={showStatsOverlay}
+        fps={fps}
+        ballCount={actualBallCount}
+        generation={generation}
+        checks={checks}
+        calcFactor={calcFactor}
+        onClose={() => setShowStatsOverlay(false)}
+      />
 
       {/* Tap Zones (bottom corners) */}
       <TapZones

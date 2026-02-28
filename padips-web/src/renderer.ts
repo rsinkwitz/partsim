@@ -484,6 +484,15 @@ class PaDIPSApp {
    * Setup UI event handlers (optional - nur wenn HTML-UI existiert)
    */
   private setupUI(): void {
+    // Stats overlay click listener (always active, Web + Mobile)
+    const statsOverlay = document.getElementById('statsOverlay');
+    if (statsOverlay) {
+      statsOverlay.addEventListener('click', () => {
+        this.toggleStatsOverlay();
+        console.log('👆 Stats overlay clicked - toggled');
+      });
+    }
+
     // Check if HTML UI exists
     const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
     if (!startBtn) {
@@ -677,6 +686,7 @@ class PaDIPSApp {
     if (gridVizGroup) {
       gridVizGroup.classList.add('disabled');
     }
+
 
     // Keyboard shortcuts
     this.setupKeyboardShortcuts();
@@ -1935,11 +1945,13 @@ class PaDIPSApp {
     const statBallsEl = document.getElementById('statBalls');
     const statGenEl = document.getElementById('statGen');
     const statChecksEl = document.getElementById('statChecks');
+    const statCalcEl = document.getElementById('statCalc');
 
     if (statFpsEl) statFpsEl.textContent = this.currentFps.toString();
     if (statBallsEl) statBallsEl.textContent = this.ballSet.num.toString();
     if (statGenEl) statGenEl.textContent = this.ballSet.generation.toString();
     if (statChecksEl) statChecksEl.textContent = this.physicsEngine.stats.numChecks.toLocaleString();
+    if (statCalcEl) statCalcEl.textContent = this.simulationState.calcFactor.toString();
   }
 
   /**

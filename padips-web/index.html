@@ -44,8 +44,13 @@
         line-height: 1.6;
         z-index: 100;
         display: none;
-        pointer-events: none; /* Click-through */
+        pointer-events: auto; /* Clickable */
+        cursor: pointer;
         user-select: none;
+      }
+
+      #statsOverlay:hover {
+        background: rgba(0, 0, 0, 0.7);
       }
 
       #statsOverlay.visible {
@@ -181,6 +186,10 @@
         <div class="stat-line">
           <span class="stat-label">Checks:</span>
           <span class="stat-value" id="statChecks">0</span>
+        </div>
+        <div class="stat-line">
+          <span class="stat-label">Calc:</span>
+          <span class="stat-value" id="statCalc">1</span>
         </div>
       </div>
 

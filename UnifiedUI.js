@@ -160,23 +160,37 @@ function TooltipButton({ title, onPress, children, style, textStyle }) {
 }
 
 /**
- * Stats Panel - 2x2 Grid
+ * Stats Panel - 3 rows (FPS/Balls, Gen/Checks, Calc)
  */
-function StatsPanel({ fps, ballCount, generation, checks, isDarkMode = false }) {
+function StatsPanel({ fps, ballCount, generation, checks, calcFactor, isDarkMode = false }) {
   const textColor = isDarkMode ? '#e0e0e0' : '#333';
   return (
     <View style={styles.statsContainer}>
       <View style={styles.statsRow}>
-        <Text style={[styles.statLabel, { color: textColor }]}>FPS:</Text>
-        <Text style={[styles.statValue, { color: textColor }]}>{fps}</Text>
-        <Text style={[styles.statLabel, { color: textColor }]}>Balls:</Text>
-        <Text style={[styles.statValue, { color: textColor }]}>{ballCount}</Text>
+        <View style={styles.statPair}>
+          <Text style={[styles.statLabel, { color: textColor }]}>FPS:</Text>
+          <Text style={[styles.statValue, { color: textColor }]}>{fps}</Text>
+        </View>
+        <View style={styles.statPair}>
+          <Text style={[styles.statLabel, { color: textColor }]}>Balls:</Text>
+          <Text style={[styles.statValue, { color: textColor }]}>{ballCount}</Text>
+        </View>
       </View>
       <View style={styles.statsRow}>
-        <Text style={[styles.statLabel, { color: textColor }]}>Gen:</Text>
-        <Text style={[styles.statValue, { color: textColor }]}>{generation}</Text>
-        <Text style={[styles.statLabel, { color: textColor }]}>Checks:</Text>
-        <Text style={[styles.statValue, { color: textColor }]}>{checks.toLocaleString()}</Text>
+        <View style={styles.statPair}>
+          <Text style={[styles.statLabel, { color: textColor }]}>Gen:</Text>
+          <Text style={[styles.statValue, { color: textColor }]}>{generation}</Text>
+        </View>
+        <View style={styles.statPair}>
+          <Text style={[styles.statLabel, { color: textColor }]}>Checks:</Text>
+          <Text style={[styles.statValue, { color: textColor }]}>{checks.toLocaleString()}</Text>
+        </View>
+      </View>
+      <View style={styles.statsRow}>
+        <View style={styles.statPair}>
+          <Text style={[styles.statLabel, { color: textColor }]}>Calc:</Text>
+          <Text style={[styles.statValue, { color: textColor }]}>{calcFactor}x</Text>
+        </View>
       </View>
     </View>
   );
@@ -359,6 +373,57 @@ function BallCountControls({ ballCount, setBallCount, sendToWebView, isDarkMode 
         </TouchableOpacity>
       </View>
     </View>
+  );
+}
+
+/**
+ * Stats Tap Zone (top-left, toggles overlay like F2 on Web)
+ */
+function StatsTapZone({ onToggle }) {
+  return (
+    <TouchableOpacity
+      style={styles.statsTapZone}
+      onPress={onToggle}
+      activeOpacity={0.3}
+    >
+      {/* Invisible tap zone */}
+    </TouchableOpacity>
+  );
+}
+
+/**
+ * Stats Overlay (Game-style HUD, top-left)
+ */
+function StatsOverlay({ visible, fps, ballCount, generation, checks, calcFactor, onClose }) {
+  if (!visible) return null;
+
+  return (
+    <TouchableOpacity
+      style={styles.statsOverlay}
+      onPress={onClose}
+      activeOpacity={0.7}
+    >
+      <Text style={styles.statsOverlayLine}>
+        <Text style={styles.statsOverlayLabel}>FPS: </Text>
+        <Text style={styles.statsOverlayValue}>{fps}</Text>
+      </Text>
+      <Text style={styles.statsOverlayLine}>
+        <Text style={styles.statsOverlayLabel}>Balls: </Text>
+        <Text style={styles.statsOverlayValue}>{ballCount}</Text>
+      </Text>
+      <Text style={styles.statsOverlayLine}>
+        <Text style={styles.statsOverlayLabel}>Gen: </Text>
+        <Text style={styles.statsOverlayValue}>{generation}</Text>
+      </Text>
+      <Text style={styles.statsOverlayLine}>
+        <Text style={styles.statsOverlayLabel}>Checks: </Text>
+        <Text style={styles.statsOverlayValue}>{checks.toLocaleString()}</Text>
+      </Text>
+      <Text style={styles.statsOverlayLine}>
+        <Text style={styles.statsOverlayLabel}>Calc: </Text>
+        <Text style={styles.statsOverlayValue}>{calcFactor}x</Text>
+      </Text>
+    </TouchableOpacity>
   );
 }
 
@@ -730,7 +795,7 @@ export function UnifiedMenuOverlay({
           {/* KOPF-BEREICH: Stats + Close Button */}
           <View style={styles.headerRow}>
             <View style={styles.statsWrapper}>
-              <StatsPanel fps={fps} ballCount={actualBallCount} generation={generation} checks={checks} isDarkMode={isDarkMode} />
+              <StatsPanel fps={fps} ballCount={actualBallCount} generation={generation} checks={checks} calcFactor={calcFactor} isDarkMode={isDarkMode} />
             </View>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
               <Text style={styles.closeButtonText}>✖</Text>
@@ -820,7 +885,7 @@ export function UnifiedMenuOverlay({
 
           <BallCountControls
             ballCount={actualBallCount}
-            setBallCount={() => {}} // Set via ±50 buttons only
+            setBallCount={setBallCount}
             sendToWebView={sendToWebView}
             isDarkMode={isDarkMode}
           />
@@ -1366,27 +1431,33 @@ const styles = StyleSheet.create({
   // Stats
   statsContainer: {
     backgroundColor: 'rgba(0, 0, 0, 0.08)',
-    padding: 6, // Kompakter: 8 → 6
+    paddingHorizontal: 2, // Minimaler horizontaler Padding
+    paddingVertical: 4,   // Vertikal kompakt
     borderRadius: 6,
     marginBottom: 8, // Kompakter: 12 → 8
   },
   statsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start', // Kein space-between mehr
     alignItems: 'center',
     marginBottom: 1, // Kompakter: 2 → 1
+  },
+  statPair: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1, // Gleichmäßige Verteilung
   },
   statLabel: {
     color: '#333', // Light mode
     fontSize: 12,
-    width: 50, // Feste Breite für Labels (schmaler)
+    width: 50, // Breiter für "Checks:" (38 → 50)
     textAlign: 'right',
-    marginRight: 4,
+    marginRight: 1, // Minimaler Abstand
   },
   statValue: {
     color: '#333', // Light mode
     fontSize: 12,
-    flex: 1, // Nimmt restlichen Platz für große Zahlen
+    flex: 1, // Flexibel, nimmt verfügbaren Platz
     textAlign: 'left',
   },
 
@@ -1636,5 +1707,44 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+
+  // Stats Tap Zone & Overlay (F2 equivalent for Mobile)
+  statsTapZone: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    width: 120,
+    height: 110, // Höher für 5 Zeilen (90 → 110)
+    zIndex: 50,
+    // backgroundColor: 'rgba(255, 0, 0, 0.2)', // Uncomment for debugging
+  },
+  statsOverlay: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    zIndex: 100,
+  },
+  statsOverlayLine: {
+    marginVertical: 2,
+  },
+  statsOverlayLabel: {
+    color: '#888',
+    fontSize: 13,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  statsOverlayValue: {
+    color: '#4CAF50',
+    fontSize: 13,
+    fontWeight: 'bold',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
 });
+
+
+// Export additional components
+export { StatsTapZone, StatsOverlay };
 
