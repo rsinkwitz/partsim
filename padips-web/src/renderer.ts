@@ -493,224 +493,13 @@ class PaDIPSApp {
       });
     }
 
-    // Check if HTML UI exists
-    const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
-    if (!startBtn) {
-      console.log('ℹ️ No HTML UI found - using external control (React Native/Expo)');
-      // Setup keyboard shortcuts even without HTML UI
-      this.setupKeyboardShortcuts();
-      return;
-    }
+    // No HTML UI - using external control (React Native/Expo)
+    console.log('ℹ️ No HTML UI - using external control (React Native/Expo)');
 
-    console.log('🎨 Setting up HTML UI controls');
-
-    // Buttons
-    const stopBtn = document.getElementById('stopBtn') as HTMLButtonElement;
-    const resetBtn = document.getElementById('resetBtn') as HTMLButtonElement;
-
-    startBtn.addEventListener('click', () => this.start());
-    stopBtn.addEventListener('click', () => this.stop());
-    resetBtn.addEventListener('click', () => this.reset());
-
-    // Simulation controls
-    this.setupRangeControl('calcFactor', (value) => {
-      this.physicsEngine.setCalcFactor(value);
-      console.log('⚙️ Calc factor changed to:', value);
-    });
-
-    const collisionsCheckbox = document.getElementById('collisionsEnabled') as HTMLInputElement;
-    collisionsCheckbox.addEventListener('change', () => {
-      this.physicsEngine.setCollisionsEnabled(collisionsCheckbox.checked);
-      console.log('⚙️ Collisions:', collisionsCheckbox.checked ? 'ON' : 'OFF');
-    });
-
-    // Rendering controls
-    const drawModeSelect = document.getElementById('drawMode') as HTMLSelectElement;
-    drawModeSelect.addEventListener('change', () => {
-      this.updateDrawMode(drawModeSelect.value as DrawMode);
-      console.log('🎨 Draw mode changed to:', drawModeSelect.value);
-    });
-
-    // Stereo mode radio buttons
-    const stereoModeRadios = document.querySelectorAll<HTMLInputElement>('input[name="stereoMode"]');
-    stereoModeRadios.forEach(radio => {
-      radio.addEventListener('change', () => {
-        if (radio.checked) {
-          const mode = radio.value as StereoMode;
-          this.sceneManager.setStereoMode(mode);
-          console.log('🕶️ Stereo mode changed to:', mode);
-
-          // Update UI layout for Top-Bottom mode
-          if (mode === 'topbottom') {
-            document.body.classList.add('stereo-topbottom');
-            console.log('📺 UI restricted to top half for Top-Bottom stereo');
-          } else {
-            document.body.classList.remove('stereo-topbottom');
-          }
-        }
-      });
-    });
-
-    // Eye separation for stereo (in cm, converted to meters)
-    this.setupRangeControl('eyeSeparation', (value) => {
-      this.sceneManager.setEyeSeparation(value / 100); // Convert cm to meters
-      console.log('👁️ Eye separation:', (value / 100).toFixed(3), 'm');
-    }, 100);
-
-    // Wireframe density (segments)
-    this.setupRangeControl('wireframeSegments', (value) => {
-      this.sceneManager.setWireframeSegments(value);
-      // Recreate meshes if in wireframe mode
-      if (this.sceneManager.getDrawMode() === DrawMode.WIREFRAME) {
-        this.sceneManager.recreateBallMeshes(this.ballSet);
-      }
-      console.log('🔲 Wireframe segments:', value);
-    });
-
-    // Cube depth for 3D stereo effect (in units, 0.1m per unit)
-    this.setupRangeControl('cubeDepth', (value) => {
-      this.sceneManager.setCubeDepth(value * 0.1); // Scale: slider -20..20 → -2..2 meters
-      console.log('📦 Cube depth:', (value * 0.1).toFixed(1), 'm');
-    }, 10);
-
-    // Ball controls
-    this.setupRangeControl('ballCount', (value) => {
-      this.ballParams.count = value;
-      console.log('🎱 Ball count changed to:', value, '(click New to apply)');
-    });
-
-    this.setupRangeControl('minRadius', (value) => {
-      this.ballParams.minRadius = value / 100;
-      console.log('🎱 Min radius will be:', (value / 100).toFixed(2), 'm');
-    }, 100);
-
-    this.setupRangeControl('maxRadius', (value) => {
-      this.ballParams.maxRadius = value / 100;
-      console.log('🎱 Max radius will be:', (value / 100).toFixed(2), 'm');
-    }, 100);
-
-    this.setupRangeControl('maxVelocity', (value) => {
-      this.ballParams.maxVelocity = value;
-      console.log('🎱 Max velocity will be:', value, 'm/s');
-    });
-
-    this.setupRangeControl('elasticity', (value) => {
-      this.ballParams.elasticity = value / 100;
-      console.log('🎱 Ball elasticity will be:', (value / 100).toFixed(2));
-    }, 100);
-
-    // Physics controls
-    const gravityPresetSelect = document.getElementById('gravityPreset') as HTMLSelectElement;
-    gravityPresetSelect.addEventListener('change', () => {
-      const magnitude = parseFloat((document.getElementById('gravityMagnitude') as HTMLInputElement).value);
-      this.global.setGravityPreset(gravityPresetSelect.value, magnitude);
-      console.log('🌍 Gravity preset changed to:', gravityPresetSelect.value, 'magnitude:', magnitude, 'm/s²');
-      console.log('🌍 New acceleration:', this.global.acceleration);
-    });
-
-    this.setupRangeControl('gravityMagnitude', (value) => {
-      const preset = (document.getElementById('gravityPreset') as HTMLSelectElement).value;
-      this.global.setGravityPreset(preset, value);
-      console.log('🌍 Gravity magnitude changed to:', value, 'm/s² (preset:', preset + ')');
-      console.log('🌍 New acceleration:', this.global.acceleration);
-    });
-
-    this.setupRangeControl('globalElasticity', (value) => {
-      this.global.elasticity = value / 100;
-      console.log('⚡ Global elasticity:', (value / 100).toFixed(2));
-    }, 100);
-
-    // Grid system controls
-    const gridEnabled = document.getElementById('gridEnabled') as HTMLInputElement;
-    const gridVizGroup = document.querySelector('.grid-viz-group') as HTMLElement;
-
-    gridEnabled.addEventListener('change', () => {
-      const enabled = gridEnabled.checked;
-
-      // Toggle visualization controls
-      if (gridVizGroup) {
-        if (enabled) {
-          gridVizGroup.classList.remove('disabled');
-        } else {
-          gridVizGroup.classList.add('disabled');
-        }
-      }
-
-      console.log('🔲 Grid mode:', enabled ? 'ENABLED' : 'DISABLED');
-    });
-
-    this.setupRangeControl('gridSegments', (value) => {
-      console.log('🔲 Grid segments changed to:', value, '(click Apply to activate)');
-    });
-
-    const applyGridBtn = document.getElementById('applyGridBtn') as HTMLButtonElement;
-    applyGridBtn.addEventListener('click', () => {
-      this.applyGrid();
-    });
-
-    const showWorldGrid = document.getElementById('showWorldGrid') as HTMLInputElement;
-    showWorldGrid.addEventListener('change', () => {
-      const show = showWorldGrid.checked;
-
-      // If user wants to show grid but it doesn't exist yet, create it
-      if (show && !this.sceneManager.hasGridVisualization()) {
-        const gridEnabled = (document.getElementById('gridEnabled') as HTMLInputElement)?.checked;
-        if (gridEnabled) {
-          // Grid system is enabled, create visualization
-          const gridSegmentsValue = parseInt((document.getElementById('gridSegments') as HTMLInputElement).value);
-          const segments = new THREE.Vector3(gridSegmentsValue, gridSegmentsValue, gridSegmentsValue);
-          const CBR = 1.518;
-          const origin = new THREE.Vector3(-CBR, -CBR, -CBR);
-          const extent = new THREE.Vector3(CBR, CBR, CBR);
-          this.sceneManager.createGridVisualization(segments, origin, extent);
-        }
-      }
-
-      this.sceneManager.setShowGrid(show);
-    });
-
-    const showOccupiedVoxels = document.getElementById('showOccupiedVoxels') as HTMLInputElement;
-    showOccupiedVoxels.addEventListener('change', () => {
-      this.sceneManager.setShowOccupiedVoxels(showOccupiedVoxels.checked);
-    });
-
-    const showCollisionChecks = document.getElementById('showCollisionChecks') as HTMLInputElement;
-    showCollisionChecks.addEventListener('change', () => {
-      const enabled = showCollisionChecks.checked;
-      this.sceneManager.setShowCollisionChecks(enabled);
-      this.physicsEngine.setTrackCollisionChecks(enabled);
-      console.log('🔲 Collision checks tracking:', enabled);
-    });
-
-    // Initialize grid viz group as disabled
-    if (gridVizGroup) {
-      gridVizGroup.classList.add('disabled');
-    }
-
-
-    // Keyboard shortcuts
+    // Setup keyboard shortcuts
     this.setupKeyboardShortcuts();
   }
 
-  /**
-   * Helper: Setup range control with value display
-   */
-  private setupRangeControl(id: string, onChange: (value: number) => void, multiplier = 1): void {
-    const input = document.getElementById(id) as HTMLInputElement;
-    const valueDisplay = document.getElementById(`${id}Value`);
-
-    const updateValue = () => {
-      const value = parseFloat(input.value);
-      const displayValue = multiplier === 100 ? (value / 100).toFixed(2) : value;
-      if (valueDisplay) {
-        valueDisplay.textContent = displayValue.toString();
-      }
-      onChange(value);
-    };
-
-    input.addEventListener('input', updateValue);
-    updateValue(); // Initial update
-  }
 
   /**
    * Setup keyboard shortcuts
@@ -1055,11 +844,6 @@ class PaDIPSApp {
 
     this.updateDrawMode(newMode);
 
-    // Update UI select
-    const select = document.getElementById('drawMode') as HTMLSelectElement;
-    if (select) {
-      select.value = newMode;
-    }
 
     // Send state update to parent
     this.sendStateToParent();
@@ -1090,15 +874,6 @@ class PaDIPSApp {
 
     this.ballParams.count = newCount;
 
-    // Update UI slider
-    const slider = document.getElementById('ballCount') as HTMLInputElement;
-    if (slider) {
-      slider.value = newCount.toString();
-    }
-    const valueDisplay = document.getElementById('ballCountValue');
-    if (valueDisplay) {
-      valueDisplay.textContent = newCount.toString();
-    }
 
     // Apply change
     this.reset();
@@ -1110,10 +885,12 @@ class PaDIPSApp {
   private applyGrid(): void {
     console.log('🔲 Applying grid configuration...');
 
-    const gridEnabled = (document.getElementById('gridEnabled') as HTMLInputElement).checked;
-    const gridSegmentsValue = parseInt((document.getElementById('gridSegments') as HTMLInputElement).value);
-    const showWorldGrid = (document.getElementById('showWorldGrid') as HTMLInputElement).checked;
-    const showOccupiedVoxels = (document.getElementById('showOccupiedVoxels') as HTMLInputElement).checked;
+    // Grid parameters are received via PostMessage (from React UI)
+    // Use current visualizationState values
+    const gridEnabled = this.visualizationState.gridEnabled;
+    const gridSegmentsValue = this.visualizationState.gridSegments.x; // All dimensions are equal
+    const showWorldGrid = this.visualizationState.showWorldGrid;
+    const showOccupiedVoxels = this.visualizationState.showOccupiedVoxels;
 
     // Store in visualizationState for persistence
     this.visualizationState.gridEnabled = gridEnabled;
@@ -1134,28 +911,12 @@ class PaDIPSApp {
       console.warn('⚠️ Max ball radius too large for grid, adjusting...');
       this.ballParams.maxRadius = maxAllowedRadius * 0.9; // 90% of max to be safe
       parametersAdjusted = true;
-
-      // Update HTML UI if it exists
-      const maxRadiusSlider = document.getElementById('maxRadius') as HTMLInputElement;
-      const maxRadiusValue = document.getElementById('maxRadiusValue');
-      if (maxRadiusSlider && maxRadiusValue) {
-        maxRadiusSlider.value = (this.ballParams.maxRadius * 100).toString();
-        maxRadiusValue.textContent = this.ballParams.maxRadius.toFixed(2);
-      }
     }
 
     if (this.ballParams.minRadius > maxAllowedRadius) {
       console.warn('⚠️ Min ball radius too large for grid, adjusting...');
       this.ballParams.minRadius = maxAllowedRadius * 0.5;
       parametersAdjusted = true;
-
-      // Update HTML UI if it exists
-      const minRadiusSlider = document.getElementById('minRadius') as HTMLInputElement;
-      const minRadiusValue = document.getElementById('minRadiusValue');
-      if (minRadiusSlider && minRadiusValue) {
-        minRadiusSlider.value = (this.ballParams.minRadius * 100).toString();
-        minRadiusValue.textContent = this.ballParams.minRadius.toFixed(2);
-      }
     }
 
     // Stop simulation
@@ -1245,15 +1006,6 @@ class PaDIPSApp {
 
     this.sceneManager.setWireframeSegments(newValue);
 
-    // Update UI slider
-    const slider = document.getElementById('wireframeSegments') as HTMLInputElement;
-    if (slider) {
-      slider.value = newValue.toString();
-    }
-    const valueDisplay = document.getElementById('wireframeSegmentsValue');
-    if (valueDisplay) {
-      valueDisplay.textContent = newValue.toString();
-    }
 
     // Recreate meshes if in wireframe mode
     if (this.sceneManager.getDrawMode() === DrawMode.WIREFRAME) {
@@ -1265,30 +1017,14 @@ class PaDIPSApp {
    * Toggle gravity between DOWN and ZERO
    */
   private toggleGravity(): void {
-    const selectEl = document.getElementById('gravityPreset') as HTMLSelectElement;
-    const magnitudeEl = document.getElementById('gravityMagnitude') as HTMLInputElement;
+    const currentAccel = this.global.acceleration;
+    const isZero = currentAccel.x === 0 && currentAccel.y === 0 && currentAccel.z === 0;
+    const newPreset = isZero ? 'DOWN' : 'ZERO';
 
-    // If no HTML UI, just toggle between ZERO and DOWN with current magnitude
-    if (!selectEl || !magnitudeEl) {
-      const currentAccel = this.global.acceleration;
-      const isZero = currentAccel.x === 0 && currentAccel.y === 0 && currentAccel.z === 0;
-      const newPreset = isZero ? 'DOWN' : 'ZERO';
-      // Use stored magnitude instead of hardcoded 9.81
-      this.global.setGravityPreset(newPreset, this.gravityMagnitude);
-      console.log('🌍 Gravity toggled to:', newPreset, 'magnitude:', this.gravityMagnitude);
-      // Send state update to parent
-      this.sendStateToParent();
-      return;
-    }
+    // Use stored magnitude
+    this.global.setGravityPreset(newPreset, this.gravityMagnitude);
+    console.log('🌍 Gravity toggled to:', newPreset, 'magnitude:', this.gravityMagnitude);
 
-    const currentPreset = selectEl.value;
-    const newPreset = currentPreset === 'ZERO' ? 'DOWN' : 'ZERO';
-    const magnitude = parseFloat(magnitudeEl.value);
-
-    this.global.setGravityPreset(newPreset, magnitude);
-    selectEl.value = newPreset;
-
-    console.log('🌍 Gravity toggled to:', newPreset, 'with magnitude:', magnitude);
     // Send state update to parent
     this.sendStateToParent();
   }
@@ -1406,15 +1142,6 @@ class PaDIPSApp {
     this.sceneManager.setCubeDepth(newValue * 0.1);
     console.log('📦 Cube depth changed to:', (newValue * 0.1).toFixed(1), 'm');
 
-    // Update HTML UI if it exists
-    const slider = document.getElementById('cubeDepth') as HTMLInputElement;
-    const valueDisplay = document.getElementById('cubeDepthValue');
-    if (slider) {
-      slider.value = newValue.toString();
-    }
-    if (valueDisplay) {
-      valueDisplay.textContent = newValue.toFixed(1);
-    }
 
     // Send state update to parent (React Native)
     this.sendCubeDepthUpdate(newValue);
@@ -1699,13 +1426,6 @@ class PaDIPSApp {
     this.lastFpsUpdate = this.lastTime;
     this.frameCount = 0;
 
-    // Update HTML buttons if they exist
-    const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
-    const stopBtn = document.getElementById('stopBtn') as HTMLButtonElement;
-    if (startBtn && stopBtn) {
-      startBtn.disabled = true;
-      stopBtn.disabled = false;
-    }
 
     console.log('▶ Simulation started (physics enabled)');
 
@@ -1722,13 +1442,6 @@ class PaDIPSApp {
     this.isRunning = false;
     // Animation-Loop NICHT stoppen - läuft weiter für Rendering!
 
-    // Update HTML buttons if they exist
-    const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
-    const stopBtn = document.getElementById('stopBtn') as HTMLButtonElement;
-    if (startBtn && stopBtn) {
-      startBtn.disabled = false;
-      stopBtn.disabled = true;
-    }
 
     console.log('⏸ Simulation stopped (rendering continues for camera interaction)');
 
